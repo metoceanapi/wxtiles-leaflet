@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>WxTiles v2.0</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="shortcut icon" href="res/icon.png" type="image/x-icon" />
+		<style type="text/css">
+			html,
+			body {
+				height: 100%;
+				margin: 0;
+			}
+		</style>
+
+		<!-- LEAFLET lib goes first -->
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+			integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+			crossorigin=""
+		/>
+
+		<script
+			src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+			integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+			crossorigin=""
+		></script>
+
+		<!-- WxTile lib goes here -->
+		<link rel="stylesheet" href="./wxtile/wxtile.css" />
+		<script src="./wxtile/wxtile.js"></script>
+
+		<!-- index.js -->
+		<script defer src="index.js"></script>
+	</head>
+
+	<body>
+		<div id="map" style="height: 100%"></div>
+		<div id="layerPanel">
+			<div style="border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)" onclick="event.stopPropagation();">
+				<div>
+					Select DataSet:
+					<select id="selectDataSet"></select>
+				</div>
+				<div>
+					Select Variable:
+					<select id="selectVariable"></select>
+					<button id="buttonHold">hold</button>
+					<button id="buttonClear">clear</button>
+				</div>
+				<div>
+					Select time:
+					<select id="selectTime"></select>
+					<button id="buttonPlayStop">play</button>
+					<input id="animDelay" type="number" style="width: 5ch" min="0" max="900" step="100" value="200" />ms delay
+				</div>
+				<div>
+					Select style:
+					<select id="selectStyle"></select>
+				</div>
+			</div>
+		</div>
+		<div id="styleEditor">
+			<div
+				onclick="event.stopPropagation();"
+				ondblclick="event.stopPropagation();"
+				onwheel="event.stopPropagation();"
+				onmousedown="event.stopPropagation();"
+				onmousemove="event.stopPropagation();"
+			>
+				<button id="customStyleButton" style="height: 1.5em; background-color: gray">show custom style</button>
+				<textarea id="customStyle" style="width: 50vw; height: 50vh"></textarea>
+			</div>
+		</div>
+		<div id="infoPanel" style="width: 30em; border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)"></div>
+		<canvas id="legend" width="600px" height="40px" style="border: 2px"></canvas>
+
+		<script>
+			if (!!window.EventSource) {
+				var source = new EventSource('/watch');
+
+				source.addEventListener(
+					'message',
+					function (e) {
+						window.location.reload();
+					},
+					false
+				);
+
+				source.addEventListener(
+					'open',
+					function (e) {
+						console.log('Connected to dev server');
+					},
+					false
+				);
+
+				source.addEventListener(
+					'error',
+					function (e) {
+						if (e.eventPhase == EventSource.CLOSED) source.close();
+						if (e.target.readyState == EventSource.CLOSED) {
+							console.warn('Disconnected from dev server');
+						} else if (e.target.readyState == EventSource.CONNECTING) {
+							console.info('Connecting to dev server');
+						}
+					},
+					false
+				);
+			} else {
+				console.log("Your browser doesn't support SSE");
+			}
+		</script>
+	</body>
+</html>

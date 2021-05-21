@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>WxTiles v2.0</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<link rel="shortcut icon" href="res/icon.png" type="image/x-icon" />
+
+		<!-- LEAFLET lib goes first -->
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+			integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+			crossorigin=""
+		/>
+
+		<script
+			src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+			integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+			crossorigin=""
+		></script>
+
+		<!-- WxTile lib goes here -->
+		<script src="../dist/web/wxtile.js"></script>
+		<link rel="stylesheet" href="../dist/web/wxtile.css" />
+	</head>
+
+	<body style="margin: 0">
+		<div style="margin: 20px">
+			Select time:
+			<select id="selectTime" onchange="setTime(this.value)"></select>
+		</div>
+
+		<div id="map" style="height: 100vh; width: 100vw"></div>
+
+		<script>
+			('use strict');
+			const { WxTileLogging, WxTileLibSetup, WxTileWatermark, WxTileLayer, WxGetColorStyles } = window.wxtilejs;
+
+			// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
+			const map = L.map('map', { center: [-37.803113, 174.878166], zoom: 5, zoomControl: false });
+
+			WxTileLogging(true); // use wxtiles logging -> console.log
+			WxTileWatermark({ URI: 'res/wxtiles-logo.png', position: 'topleft' }).addTo(map); // set the correct URI
+			// ESSENTIAL step to get lib ready.
+			WxTileLibSetup(); // if empty defaults are used
+
+			// SCALAR field setup
+			const layerS = WxTileLayer({
+				dataSource: {
+					serverURI: 'https://tiles.metoceanapi.com/data', // server to fetch data from
+					ext: 'png', // png / webp (default) - wxtilesplitter output format
+					dataset: 'ecwmf.global', // dataset of the dataset
+					variables: ['air.temperature.at-2m'], // variable(s) to be used for the layer rendering
+					name: 'air.temperature.at-2m', // attribute of the dataSource to be used externally
+					styleName: 'base', // The name of the style (from styles.json) to apply for the layer
+				},
+				// Lazy setup
+				// 'true': perform setup and data loading on 'addTo(map)'.
+				// 'false': start loading immediately, but loading is not finished when layer is created.
+				// the signal 'setupcomplete' is fired when loading is finished.
+				// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
+				lazy: false,
+				options: {
+					opacity: 0.99,
+				},
+			});
+			layerS.addTo(map);
+
+			// TIMES
+			// instead of layerS.once('setupcomplete') setupCompletePromise can be used
+			layerS.setupCompletePromise.then(() => {
+				// once layer setup finished, times are available.
+				// let's fill up 'selectTimeEl'
+				const selectTimeEl = document.getElementById('selectTime');
+				layerS.getTimes().forEach((val) => {
+					const opt = document.createElement('option');
+					opt.appendChild(document.createTextNode(val));
+					opt.value = val;
+					selectTimeEl.appendChild(opt);
+				});
+				selectTimeEl.value = layerS.getTime();
+			});
+
+			// FUNCs section
+
+			window.setTime = function (val) {
+				const d = new Date(val).getTime();
+				layerS.setTime(d);
+			};
+		</script>
+	</body>
+</html>

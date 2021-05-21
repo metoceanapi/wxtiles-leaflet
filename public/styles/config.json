@@ -1,0 +1,72 @@
+{
+	"dataServer": "https://tiles.metoceanapi.com/data/",
+	"dataServer1": "http://sexo01.cluster.rag.metocean.co.nz:9090/data/",
+	"dataServer3": "http://localhost:8585/data",
+	"ext": "png",
+	"map": {
+		"center": [-37.803113, 174.878166],
+		"zoom": 5,
+		"zoomControl": false
+	},
+	"baseLayers": [
+		{
+			"name": "ArcGIS",
+			"URL": "https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}",
+			"options": {
+				"zIndex": 0,
+				"maxZoom": 18,
+				"minZoom": 0,
+				"tms": false
+			},
+			"add": false
+		},
+		{
+			"name": "land outlines",
+			"URL": "https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}",
+			"options": {
+				"zIndex": 1000,
+				"maxZoom": 18,
+				"minZoom": 0
+			},
+			"add": true
+		},
+		{
+			"name": "base-satellite",
+			"URL": "https://tiles.metoceanapi.com/base-satellite/{z}/{x}/{y}",
+			"options": {
+				"zIndex": 0,
+				"maxZoom": 18,
+				"minZoom": 0
+			},
+			"add": false
+		},
+		{
+			"name": "base-bathy",
+			"URL": "https://tiles.metoceanapi.com/base-bathy/{z}/{x}/{y}",
+			"options": {
+				"zIndex": 0,
+				"maxZoom": 18,
+				"minZoom": 0
+			},
+			"add": true
+		}
+	],
+	"varToStyleMap": [
+		[".*precipitation.*", "precipitation"],
+		[".*reflectivity.*", "rain.radar"],
+		[".*reflectivity.*", "rain.base"],
+		[".*reflectivity.*", "rain.EWIS"],
+		[".*reflectivity.*", "rain.radar.metocean"],
+		[".*reflectivity.*", "rain.radar.metocean.gradient"],
+		[".*reflectivity.*", "rain.radar.metservice"],
+		[".*reflectivity.*", "rain.radar.metservice.gradient"],
+		[".*curdir.*", "CurDirection"],
+		[".*dir.*", "Direction"],
+		[".*dp.*", "Direction"],
+		[".*hs.*", "Significant.wave.height"],
+		[".*tp.*", "Wave.Period"],
+		[".*wndsp.*", "Wind.speed"],
+		[".*cur.*", "Current.speed"],
+		[".*sst.*", "Sea.surface.temperature"]
+	]
+}
