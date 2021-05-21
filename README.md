@@ -1,1 +1,1 @@
-# wxtiles-leaftlet
+# wxtiles-leaflet
