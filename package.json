@@ -1,6 +1,6 @@
 {
-	"name": "@metservice/wxtile-js",
-	"version": "0.8.1",
+	"name": "@metoceanapi/wxtiles-leaflet",
+	"version": "0.10.0",
 	"description": "WxTile JS lib to render wxtiles datalayers",
 	"main": "dist/es/bundle.js",
 	"types": "dist/es/index.d.ts",
@@ -12,14 +12,14 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/metocean/wxtile-js.git"
+		"url": "git+https://github.com/metoceanapi/wxtiles-leaflet.git"
 	},
 	"author": "Sergei Melman",
 	"license": "ISC",
 	"bugs": {
-		"url": "https://github.com/metocean/wxtile-js/issues"
+		"url": "https://github.com/metoceanapi/wxtiles-leaflet/issues"
 	},
-	"homepage": "https://github.com/metocean/wxtile-js#readme",
+	"homepage": "https://github.com/metoceanapi/wxtiles-leaflet#readme",
 	"prettier": "@metservice/prettier",
 	"devDependencies": {
 		"@metservice/mov-tools": "^1.3.0",

@@ -1,4 +1,4 @@
-# WxTilesJS lib
+# Wxtiles-leaflet lib
 
 JS lib based on Leaflet https://leafletjs.com  
 Data tiles are from https://tiles.metoceanapi.com
@@ -6,15 +6,20 @@ Data tiles are from https://tiles.metoceanapi.com
 # demo and examples
 
 To see a demo running:
+
 ```
 npm install
 npm run start
 ```
-Demo code is found in 
-``` 
+
+Demo code is found in
+
+```
 public/index.html
 public/index.js
 ```
+
+Folder Examples contains standalone workable html examples.
 
 # API. Functions
 
