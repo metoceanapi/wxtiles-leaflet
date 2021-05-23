@@ -1,5 +1,5 @@
 {
-	"name": "@metoceanapi/wxtiles-leaflet",
+	"name": "@metservice/wxtiles-leaflet",
 	"version": "0.10.0",
 	"description": "WxTile JS lib to render wxtiles datalayers",
 	"main": "dist/es/bundle.js",

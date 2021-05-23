@@ -9,6 +9,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.00.0] - 2021-05-24
+
 ### Fixed
 
 - variablesMeta[v].minmax -> [variablesMeta[v].min, variablesMeta[v].max]
