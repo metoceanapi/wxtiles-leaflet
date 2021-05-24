@@ -9,9 +9,13 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
-## [1.0.0] - 2021-05-24
+- bundling fonts
 
-## [1.00.0] - 2021-05-24
+## [1.0.1] - 2021-05-24
+
+- bundling fonts
+
+## [1.0.0] - 2021-05-24
 
 ### Fixed
 
