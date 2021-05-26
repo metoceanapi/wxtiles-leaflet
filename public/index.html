@@ -37,7 +37,7 @@
 
 	<body>
 		<div id="map" style="height: 100%"></div>
-		<div id="layerPanel">
+		<div id="layerPanel" ondblclick="event.stopPropagation();">
 			<div style="border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)" onclick="event.stopPropagation();">
 				<div>
 					Select DataSet:
@@ -53,6 +53,7 @@
 					Select time:
 					<select id="selectTime"></select>
 					<button id="buttonPlayStop">play</button>
+					<input id="coarseLevel" type="number" style="width: 3ch" min="0" max="2" step="1" value="0" />corse
 					<input id="animDelay" type="number" style="width: 5ch" min="0" max="900" step="100" value="200" />ms delay
 				</div>
 				<div>

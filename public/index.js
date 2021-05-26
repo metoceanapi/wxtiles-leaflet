@@ -138,7 +138,7 @@ function startPlay() {
 	if (!layer || !layer.setTimeAnimationMode) return;
 	// const nextTimeStep = async () => { };
 	buttonPlayStopEl.textContent = 'stop';
-	layer.setTimeAnimationMode();
+	layer.setTimeAnimationMode(+inputCoarseLevelEl.value);
 	setTimeout(async function nextTimeStep() {
 		if (buttonPlayStopEl.textContent === 'stop') {
 			const start = Date.now();
@@ -460,5 +460,6 @@ const buttonPlayStopEl = document.getElementById('buttonPlayStop');
 buttonPlayStopEl.onclick = startStopPlay;
 
 const inputAnimDelayEl = document.getElementById('animDelay');
+const inputCoarseLevelEl = document.getElementById('coarseLevel');
 
 start();
