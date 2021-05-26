@@ -1,5 +1,5 @@
 import { HEXtoRGBA, RGBtoHEX, makeConverter, getColorSchemes, mixColor, createLevels } from './wxtools';
-import { Converter, ColorStyle } from './wxtools';
+import { Converter, ColorStyleStrict } from './wxtools';
 // import type { Converter } from './wxtools';
 
 function clamp(val: number, min: number, max: number) {
@@ -19,7 +19,7 @@ export class RawCLUT {
 	DataToStyle: Converter;
 	DataToKnots?: Converter;
 	ticks: Tick[];
-	constructor(style: ColorStyle, dUnits: string, [dMin, dMax]: [number, number], vector: boolean) {
+	constructor(style: ColorStyleStrict, dUnits: string, [dMin, dMax]: [number, number], vector: boolean) {
 		const dDif = dMax - dMin;
 		this.levelIndex = new Uint32Array(65536);
 		this.colorsI = new Uint32Array(65536);
@@ -116,7 +116,7 @@ export interface Legend {
 	ticks: Tick[];
 }
 
-export function createLegend(size: number, style: ColorStyle): Legend {
+export function createLegend(size: number, style: ColorStyleStrict): Legend {
 	const legend: Legend = {
 		size,
 		showBelowMin: style.showBelowMin,

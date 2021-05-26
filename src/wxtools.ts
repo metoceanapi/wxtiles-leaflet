@@ -1,10 +1,12 @@
+export type UnitTuple = [string, number, number?];
+
 export interface Units {
-	[unit: string]: [string, number, number?];
+	[unit: string]: UnitTuple;
 }
 
-const __units: Units = {
-	comment1: ["'degC': ['K', 1, 273.15] -> degC = K * 1 + 273.15", 0],
-	comment2: ["'hPa': ['Pa', 1000]' -> hPa = Pa * 1000 + 0 (0 - could be ommited)", 0],
+const __units_default_preset: Units = {
+	comment1: ["degC: ['K', 1, 273.15] -> degC = K * 1 + 273.15", 0],
+	comment2: ["hPa: ['Pa', 100]' -> hPa = Pa * 100 + 0 (0 - could be ommited)", 0],
 	K: ['K', 1],
 	F: ['K', 0.5555555555, 255.372222222],
 	C: ['K', 1, 273.15],
@@ -33,7 +35,7 @@ export interface ColorSchemes {
 	[name: string]: string[];
 }
 
-const __colorSchemes: ColorSchemes = {
+const __colorSchemes_default_preset: ColorSchemes = {
 	none: ['#00000000', '#00000000'],
 	rainbow: ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f'],
 	rainbow2: ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f', '#f00'],
@@ -48,7 +50,39 @@ const __colorSchemes: ColorSchemes = {
 	hspastel: ['#AC6EA4FF', '#8E92BDFF', '#ACD4DEFF', '#E9DC8EFF', '#E7A97DFF', '#E59074FF', '#BE7E68FF', '#A88F86FF'],
 };
 
-export interface ColorStyle {
+export type colorMapTuple = [number, string];
+
+export interface ColorStyleWeak {
+	parent?: string;
+	name?: string;
+	fill?: string;
+	isolineColor?: string;
+	isolineText?: boolean;
+	vectorType?: string;
+	vectorColor?: string;
+	streamLineColor?: string;
+	streamLineSpeedFactor?: number;
+	streamLineStatic?: boolean;
+	showBelowMin?: boolean;
+	showAboveMax?: boolean;
+	colorScheme?: string;
+	colors?: string[];
+	colorMap?: colorMapTuple[];
+	levels?: number[];
+	blurRadius?: number;
+	addDegrees?: number;
+	units?: string;
+	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
+}
+
+export interface ColorStylesWeakMixed {
+	[name: string]: ColorStyleWeak | ColorStyleWeak[];
+}
+export interface ColorStylesIncomplete {
+	[name: string]: ColorStyleWeak;
+}
+
+export interface ColorStyleStrict {
 	parent?: string;
 	name: string;
 	fill: string;
@@ -71,13 +105,13 @@ export interface ColorStyle {
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
 }
 
-export interface ColorStyles {
-	[name: string]: ColorStyle | ColorStyle[];
+export interface ColorStylesStrict {
+	[name: string]: ColorStyleStrict;
 }
 
-const __colorStyles: ColorStyles = {
+const __colorStyles_default_preset: ColorStylesStrict = {
 	base: {
-		// parent: null,
+		parent: undefined,
 		name: 'base',
 		fill: 'gradient',
 		isolineColor: 'inverted',
@@ -111,10 +145,10 @@ declare global {
 
 let _units: Units;
 let _colorSchemes: ColorSchemes;
-let _colorStylesUnrolled: ColorStyles;
+let _colorStylesUnrolled: ColorStylesStrict;
 
-interface LibSetupObject {
-	colorStyles?: ColorStyles;
+export interface LibSetupObject {
+	colorStyles?: ColorStylesWeakMixed;
 	units?: Units;
 	colorSchemes?: ColorSchemes;
 }
@@ -124,9 +158,10 @@ export function WxTileLibSetup({ colorStyles = {}, units = {}, colorSchemes = {}
 	if (window.wxlogging) {
 		console.log('WxTile lib setup: start');
 	}
-	_units = Object.assign({}, __units, units);
-	_colorSchemes = Object.assign({}, colorSchemes, __colorSchemes);
-	_colorStylesUnrolled = unrollStylesParent(Object.assign({}, colorStyles, __colorStyles));
+	_units = Object.assign({}, __units_default_preset, units);
+	_colorSchemes = Object.assign({}, colorSchemes, __colorSchemes_default_preset);
+	// const toUnroll = Object.assign({}, colorStyles, __colorStyles_default_preset);
+	_colorStylesUnrolled = unrollStylesParent(colorStyles);
 	if (window.wxlogging) {
 		console.log('WxTile lib setup: styles unrolled');
 	}
@@ -140,7 +175,7 @@ export function WxTileLibSetup({ colorStyles = {}, units = {}, colorSchemes = {}
 	}
 }
 
-export function WxGetColorStyles(): ColorStyles {
+export function WxGetColorStyles(): ColorStylesStrict {
 	return _colorStylesUnrolled;
 }
 
@@ -170,7 +205,7 @@ export function makeConverter(from: string, to: string, customUnits?: Units): Co
 	return b ? (x: number) => a * x + b : (x: number) => a * x;
 }
 
-function unrollStylesParent(_styles: ColorStyles): ColorStyles {
+function unrollStylesParent1(stylesIn: ColorStylesWeakMixed): ColorStylesStrict {
 	// unroll arrays of styles => plain styles to apply ineritance
 	/*
 	{
@@ -191,21 +226,24 @@ function unrollStylesParent(_styles: ColorStyles): ColorStyles {
 	I use softycopy, so {*style1} === {style1}, etc.
 	So it's easier to apply inheritance.
 	*/
-	const styles = Object.assign({}, _styles); // deep copy, so could be (and is) changed
-	for (const name in styles) {
-		const styleA = styles[name];
+	const deArrStyles = <ColorStylesWeakMixed>Object.assign({}, stylesIn, __colorStyles_default_preset); // deep copy, so could be (and is) changed
+	const deArrStyles2 = Object.assign({}, __colorStyles_default_preset);
+	for (const name in deArrStyles) {
+		const styleA = deArrStyles[name];
 		if (Array.isArray(styleA)) {
 			for (let i = 0; i < styleA.length; ++i) {
-				styles[name + '[' + i + ']'] = styleA[i];
+				deArrStyles[name + '[' + i + ']'] = styleA[i];
 			}
-			delete styles[name];
+			delete deArrStyles[name];
 		}
 	}
+
+	const styles = <ColorStylesStrict>Object.assign({}, deArrStyles);
 
 	// function to apply inheritance
 	const inheritParent = (styleName: string): void => {
 		if (styleName === 'base') return; // nothing to inherit
-		const style = styles[styleName] as ColorStyle; // there are no arrays by this point
+		const style = styles[styleName]; // there are no arrays by this point
 		if (!style.parent || !(style.parent in styles)) style.parent = 'base';
 		inheritParent(style.parent);
 		Object.assign(style, Object.assign({}, styles[style.parent], style)); // this ugly construction changes style 'in place' so it is a soft-copy. huray!
@@ -214,6 +252,36 @@ function unrollStylesParent(_styles: ColorStyles): ColorStyles {
 
 	// For every style inherit from its parent
 	Object.keys(styles).forEach(inheritParent);
+	return styles;
+}
+
+function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStrict {
+	const stylesInc: ColorStylesIncomplete = Object.assign({}, __colorStyles_default_preset);
+	for (const name in stylesArrInc) {
+		const styleA = stylesArrInc[name];
+		if (Array.isArray(styleA)) {
+			for (let i = 0; i < styleA.length; ++i) {
+				stylesInc[name + '[' + i + ']'] = Object.assign({}, styleA[i]); // deep copy
+			}
+		} else {
+			stylesInc[name] = Object.assign({}, styleA); // deep copy
+		}
+	}
+
+	// recursive function to apply inheritance
+	const inherit = (stylesInc: ColorStylesIncomplete, name: string): ColorStyleStrict => {
+		if (name === 'base') return __colorStyles_default_preset.base; // nothing to inherit
+		const style = stylesInc[name]; // there are no arrays by this point
+		if (!style.parent || !(style.parent in stylesInc)) style.parent = 'base';
+		const parent = inherit(stylesInc, style.parent); // After inheritance it is FULL ColorStyle
+		return Object.assign(style, Object.assign({}, parent, style, { parent: 'base' })); // this ugly construction changes style 'in place' so it is a soft-copy. huray!
+	};
+
+	const styles: ColorStylesStrict = {};
+	for (const name in stylesInc) {
+		styles[name] = inherit(stylesInc, name);
+	}
+
 	return styles;
 }
 
@@ -301,7 +369,7 @@ async function loadDataPicture(url: string, signal: AbortSignal): Promise<DataPi
 	return pictureToData(context.getImageData(0, 0, 258, 258));
 }
 
-interface AbortableCacheableFunc extends CacheableFunc {
+export interface AbortableCacheableFunc extends CacheableFunc {
 	abort(): void;
 }
 

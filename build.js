@@ -6,7 +6,7 @@ const sharedConfig = {
 	bundle: true,
 	plugins: [sassPlugin()],
 	loader: {
-		'.woff': 'base64',
+		'.woff': 'dataurl',
 	},
 	target: 'es6',
 	minify: true,

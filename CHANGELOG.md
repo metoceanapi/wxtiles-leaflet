@@ -9,11 +9,20 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### added
+
+- bundling fonts rewived
+- ColorStyles separated into ColorStylesStrict and ColorStylesWeakMixed
+
 ## [1.0.2] - 2021-05-24
 
-- bundling fonts
+### added
+
+- bundling fonts rewived
 
 ## [1.0.1] - 2021-05-24
+
+### added
 
 - bundling fonts
 

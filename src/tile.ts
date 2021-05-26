@@ -1,5 +1,5 @@
 import { blurData, RGBtoHEX, HEXtoRGBA, createEl } from './wxtools';
-import { DataPicture, DataPictureIntegral, ColorStyle } from './wxtools';
+import { DataPicture, DataPictureIntegral, ColorStyleStrict } from './wxtools';
 import { RawCLUT } from './RawCLUT';
 
 interface Coords {
@@ -207,7 +207,7 @@ export interface DataSource {
 }
 
 interface Layer {
-	style: ColorStyle;
+	style: ColorStyleStrict;
 	loadData: LoadDataFunc;
 	dataSource: DataSource;
 	vector: boolean;
