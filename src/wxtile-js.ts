@@ -1,5 +1,5 @@
 import { WxGridLayerProto } from './tileLayer';
-export { WxTileLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes } from './wxtools';
+export { WxTileLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
 
 // import * as L from 'leaflet';
 const L = window.L;

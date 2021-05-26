@@ -1,6 +1,6 @@
 {
-	"comment1": "'degC': ['K', 1, 273.15] -> degC = K * 1 + 273.15",
-	"comment2": "'hPa': ['Pa', 1000]' -> hPa = Pa * 1000 + 0 (0 - could be ommited)",
+	"comment1": ["'degC': ['K', 1, 273.15] -> degC = K * 1 + 273.15", 0],
+	"comment2": ["'hPa': ['Pa', 1000]' -> hPa = Pa * 1000 + 0 (0 - could be ommited)", 0],
 	"K": ["K", 1],
 	"kelvin": ["K", 1],
 	"F": ["K", 0.5555555555, 255.372222222],

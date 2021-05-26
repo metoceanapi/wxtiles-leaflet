@@ -9,6 +9,14 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### added
+
+- type LibSetupObject export
+
+### fixed
+
+- uconv.json - proper type for 'comments'
+
 ## [1.0.4] - 2021-05-26
 
 ### added
