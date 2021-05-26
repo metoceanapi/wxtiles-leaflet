@@ -9,6 +9,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.5] - 2021-05-26
+
 ### added
 
 - type LibSetupObject export
