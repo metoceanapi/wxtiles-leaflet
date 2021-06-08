@@ -132,6 +132,28 @@ const __colorStyles_default_preset: ColorStylesStrict = {
 		units: '',
 		extraUnits: undefined,
 	},
+	custom: {
+		parent: undefined,
+		name: 'custom',
+		fill: 'gradient',
+		isolineColor: 'inverted',
+		isolineText: true,
+		vectorType: 'arrows',
+		vectorColor: 'inverted',
+		streamLineColor: '#777',
+		streamLineSpeedFactor: 1,
+		streamLineStatic: false,
+		showBelowMin: true,
+		showAboveMax: true,
+		colorScheme: 'rainbow',
+		colors: undefined,
+		colorMap: undefined,
+		levels: undefined,
+		blurRadius: 0,
+		addDegrees: 0,
+		units: '',
+		extraUnits: undefined,
+	},
 };
 
 declare global {
@@ -413,6 +435,7 @@ function integralImage(raw: Uint16Array): IntegralPare {
 // BoxBlur based on integral images, whoop whoop
 export function blurData(im: DataPictureIntegral, radius: number): DataPictureIntegral {
 	if (radius < 0 || radius === im.radius) return im;
+	im.radius = radius;
 	const s = 258;
 	const { integral, integralNZ } = im.integral;
 	for (let y = 1; y < s; y++) {

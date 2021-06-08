@@ -177,12 +177,14 @@ interface TileEl extends HTMLElement {
 export function TileCreate({ layer, coords, done }): TileEl {
 	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
 	if (layer.dataSource) {
-		const wxtile = new WxTile({ layer, coords, tileEl });
-		wxtile._load().then(() => {
-			wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
-			done(); // done is used after create (to appear on map), not after reload (it is on the map already).
-		});
-		tileEl.wxtile = wxtile;
+		tileEl.wxtile = new WxTile({ layer, coords, tileEl });
+		tileEl.wxtile
+			._load()
+			.then(
+				(tile) => tile.draw() // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
+			)
+			.catch((err) => console.log(err))
+			.finally(done); // done is used after create (to appear on map), not after reload (it is on the map already).
 	} else {
 		// the layer hasn't been initilized yet, nothing to do.
 		// this happens due to lazy setup. layer.reload() is fired when ready and recreates all tiles.
@@ -243,7 +245,7 @@ export class WxTile {
 		this.canvasSlines = createEl('canvas', 's-tile canvas-slines', tileEl) as HTMLCanvasElement;
 		this.canvasVector = this.canvasFill;
 
-		this.canvasFill.width = this.canvasFill.height = this.canvasSlines.width = this.canvasSlines.height = this.canvasVector.width = this.canvasVector.height = 256;
+		this.canvasFill.width = this.canvasFill.height = this.canvasSlines.width = this.canvasSlines.height = 256;
 
 		function getCtx(el: HTMLCanvasElement) {
 			const ctx = el.getContext('2d');
@@ -279,19 +281,21 @@ export class WxTile {
 			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
-
-		for (let i = this.sLines.length; i--; ) {
+		const baseColor = this.layer.style.streamLineColor.substr(0, 7);
+		const seed = ~~(timeStemp / 120);
+		for (let i = 0; i < this.sLines.length; ++i) {
 			const sLine = this.sLines[i];
-			const seed = ~~(timeStemp / 60);
-			let pt = (seed + i) % (sLine.length - 1); // to make more chaos // regular visual patterns make animation less smooth
+			const sSize = sLine.length - 1;
+			let pt = (seed + i) % sSize; // to make more chaos // regular visual patterns make animation less smooth
 			// pt - the most opaque piece
-			for (let k = 0; k < sLine.length - 1; ++k) {
+			for (let k = 0; k < sSize; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
-				if (pt < k) pt += sLine.length - 1;
-				const t = 1 / (1 + (pt - k));
-				ctx.strokeStyle = this.layer.style.streamLineColor.substr(0, 7) + (~~(t * 255)).toString(16);
-				ctx.lineWidth = ~~(1 / t) + 1;
+				if (pt < k) pt += sSize;
+				const t = 1 - (pt - k) / sSize;
+				ctx.strokeStyle = baseColor + (~~(t * 255)).toString(16);
+				const w = 1 + ~~((1.2 - t) * 5);
+				ctx.lineWidth = w;
 				ctx.beginPath();
 				ctx.moveTo(p0.x, p0.y);
 				ctx.lineTo(p1.x, p1.y);
@@ -326,10 +330,11 @@ export class WxTile {
 			}
 		} catch (e) {
 			this.data = [];
-			this.canvasFillCtx; //.getContext('2d').clearRect(0, 0, 256, 256); // In animation through time it can become empty
-			this.canvasSlinesCtx; //.getContext('2d').clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
+			this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
+			this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
 			// this.canvasVector.getContext('2d').clearRect(0, 0, 256, 256);
 		}
+		return this;
 	} // _load
 
 	_splitCoords(coords: Coords): { upCoords: Coords; subCoords?: Coords } {
@@ -484,7 +489,7 @@ export class WxTile {
 
 		const ctx = this.canvasVectorCtx; //.getContext('2d');
 
-		ctx.font = '50px ' + this.layer.style.vectorType;
+		ctx.font = this.layer.style.vectorType === 'barbs' ? '30px barbs' : '50px arrows';
 		ctx.textAlign = 'start';
 		ctx.textBaseline = 'alphabetic';
 		// ctx.clearRect(0, 0, 256, 256);
@@ -492,8 +497,10 @@ export class WxTile {
 
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
-		for (let y = 16; y < 256; y += 32) {
-			for (let x = 16; x < 256; x += 32) {
+		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const gridStep = Math.min(2 ** (zdif + 5), 128);
+		for (let y = gridStep / 2; y < 256; y += gridStep) {
+			for (let x = gridStep / 2; x < 256; x += gridStep) {
 				const di = x + 1 + (y + 1) * 258;
 				if (!l.raw[di]) continue; // NODATA
 
@@ -537,8 +544,11 @@ export class WxTile {
 		// ctx.clearRect(0, 0, 256, 256);
 		const l = this.data[0];
 		const vecChar = 'L';
-		for (let y = 16; y < 256; y += 32) {
-			for (let x = 16; x < 256; x += 32) {
+
+		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const gridStep = Math.min(2 ** (zdif + 5), 128);
+		for (let y = gridStep / 2; y < 256; y += gridStep) {
+			for (let x = gridStep / 2; x < 256; x += gridStep) {
 				const di = x + 1 + (y + 1) * 258;
 				if (!l.raw[di]) continue; // NODATA
 				const angDeg = l.dmin + l.raw[di] * l.dmul + 180;
@@ -575,15 +585,18 @@ export class WxTile {
 		// does 20 moc steps and stores the point into streamline (sLine).
 		// Algo does two passes: forward and backward, to cope boundaries and improve visual effect.
 		const [l, u, v] = this.data;
-		for (let y = 0; y <= 256; y += 32) {
-			for (let x = 0; x <= 256; x += 32) {
+		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const gridStep = Math.min(2 ** (zdif + 5), 128);
+		const steps = ~~(120 + zdif * 120);
+		for (let y = 0; y <= 256; y += gridStep) {
+			for (let x = 0; x <= 256; x += gridStep) {
 				if (!l.raw[x + y * 258]) continue; // NODATA
 				const sLine: SLine = []; // streamline
 				let xf = x;
 				let yf = y;
-				for (let i = 0; i <= 120 && xf >= 0 && xf <= 256 && yf >= 0 && yf <= 256; i++) {
+				for (let i = 0; i <= steps && xf >= 0 && xf <= 256 && yf >= 0 && yf <= 256; i++) {
 					// forward
-					!(i % 20) && sLine.push({ x: ~~xf, y: ~~yf }); // push each 20-th point // 7 points max
+					!(i % (steps / 6)) && sLine.push({ x: ~~xf, y: ~~yf }); // push each 20-th point // 7 points max
 					const di = ~~xf + 1 + (~~yf + 1) * 258;
 					if (!l.raw[di]) break; // NODATA
 					xf += (factor * (u.dmin + u.raw[di] * u.dmul)) / l.dmax;
@@ -591,9 +604,9 @@ export class WxTile {
 				} // for i forward
 				xf = x;
 				yf = y;
-				for (let i = 1; i <= 120 && xf >= 0 && xf <= 256 && yf >= 0 && yf <= 256; i++) {
+				for (let i = 1; i <= steps && xf >= 0 && xf <= 256 && yf >= 0 && yf <= 256; i++) {
 					// backward // i = 1 becouse otherwise it produces the same first point hence visual artefact! 2 hours debugging!
-					!(i % 20) && sLine.unshift({ x: ~~xf, y: ~~yf }); // push each 20-th point // 6 points max
+					!(i % (steps / 6)) && sLine.unshift({ x: ~~xf, y: ~~yf }); // push each 20-th point // 6 points max
 					const di = ~~xf + 1 + (~~yf + 1) * 258;
 					if (!l.raw[di]) break; // NODATA
 					xf -= (factor * (u.dmin + u.raw[di] * u.dmul)) / l.dmax;

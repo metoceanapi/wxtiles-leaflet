@@ -178,6 +178,37 @@ function fillStyles(layer) {
 	onStyleChange_selectStyleEl_onchange();
 }
 
+function JSONsort(o) {
+	if (Array.isArray(o)) {
+		return o.map(JSONsort);
+	} else if (typeof o === 'object' && o !== null) {
+		const keys = Object.keys(o)
+			// .map((a) => a.toUpperCase())
+			.sort((a, b) => {
+				const aa = a.toUpperCase();
+				const bb = b.toUpperCase();
+				return aa == bb ? 0 : aa > bb ? 1 : -1;
+			});
+		return keys.reduce((a, k) => {
+			a[k] = JSONsort(o[k]);
+			return a;
+		}, {});
+	}
+	return o;
+}
+
+// function relax(o) {
+// 	for (const styleName in o) {
+// 		if (styleName === 'base') continue;
+// 		for (const field in o[styleName]) {
+// 			if (o[styleName][field] === __colorStyles_default_preset.base[field]) {
+// 				delete o[styleName][field];
+// 			}
+// 		}
+// 	}
+// 	return o;
+// }
+
 function onStyleChange_selectStyleEl_onchange() {
 	if (selectStyleEl.value === 'custom') {
 		try {
@@ -194,7 +225,9 @@ function onStyleChange_selectStyleEl_onchange() {
 		}
 	}
 	layer.setStyle(selectStyleEl.value);
-	customStyleEl.value = JSON.stringify(styles[layer.getStyle()], null, '    ');
+	const curStyleName = layer.getStyle();
+	const curStyle = styles[curStyleName];
+	customStyleEl.value = JSON.stringify(JSONsort(curStyle), null, '    ');
 	const legend = layer.getLegendData(legendCanvasEl.width - 50);
 	drawLegend({ legend, canvas: legendCanvasEl });
 }
@@ -341,13 +374,14 @@ async function start() {
 	map = L.map('map', config.map);
 
 	// Setup WxTile lib
-	// WxTileLogging(true); // use wxtiles logging -> console.log
+	WxTileLogging(true); // use wxtiles logging -> console.log
 	WxTileWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
 	layerControl = L.control.layers(null, null, { position: 'topright', autoZIndex: false, collapsed: false }).addTo(map);
 	config.baseLayers.map((baseLayer) => {
 		const layer = L.tileLayer(baseLayer.URL, baseLayer.options);
 		baseLayer.options.zIndex === 0 ? layerControl.addBaseLayer(layer, baseLayer.name) : layerControl.addOverlay(layer, baseLayer.name);
 	});
+	layerControl.addOverlay(WxDebugCoordsLayer(), 'tile boundaries');
 	layerControl.addBaseLayer(L.tileLayer('').addTo(map), 'base-empty');
 
 	createControl({ position: 'topleft', htmlID: 'legend' }).addTo(map);
@@ -380,7 +414,11 @@ async function start() {
 	// WxDebugCoordsLayer().addTo(map);
 
 	styles = WxGetColorStyles(); // all available styles. Not every style is sutable for this layer.
-
+	{
+		const sorted = JSONsort(styles);
+		const str = JSON.stringify(sorted);
+		console.dir(str);
+	}
 	fillDataSets();
 
 	map.on('zoom', stopPlay); // stop time animation on zoom

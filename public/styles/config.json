@@ -52,7 +52,12 @@
 		}
 	],
 	"varToStyleMap": [
+		[".*precipitation.*", "Forecast Rain/Precip"],
 		[".*precipitation.*", "precipitation"],
+		[".*cloud\\.cover.*", "Cloud cover"],
+		[".*chlorophyll.*", "Chlorophyll-A"],
+		[".*wind\\.speed.*", "Wind Speed"],
+		[".*wind\\.speed.*", "Wind Speed barbs"],
 		[".*reflectivity.*", "rain.radar"],
 		[".*reflectivity.*", "rain.base"],
 		[".*reflectivity.*", "rain.EWIS"],
