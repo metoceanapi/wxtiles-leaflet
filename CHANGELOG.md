@@ -13,6 +13,7 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 - coarse level in demo
 - flexible vector field density
+- more chaos
 
 ## [1.0.5] - 2021-05-26
 

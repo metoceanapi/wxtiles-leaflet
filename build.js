@@ -8,7 +8,7 @@ const sharedConfig = {
 	loader: {
 		'.woff': 'dataurl',
 	},
-	// target: 'es6',
+	target: 'es2015',
 	minify: true,
 };
 

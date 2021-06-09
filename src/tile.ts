@@ -177,14 +177,18 @@ interface TileEl extends HTMLElement {
 export function TileCreate({ layer, coords, done }): TileEl {
 	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
 	if (layer.dataSource) {
-		tileEl.wxtile = new WxTile({ layer, coords, tileEl });
-		tileEl.wxtile
+		const wxtile = new WxTile({ layer, coords, tileEl });
+		wxtile
 			._load()
-			.then(
-				(tile) => tile.draw() // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
-			)
-			.catch((err) => console.log(err))
-			.finally(done); // done is used after create (to appear on map), not after reload (it is on the map already).
+			.then(() => {
+				wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
+				done(); // done is used after create (to appear on map), not after reload (it is on the map already).
+			})
+			.catch((err) => {
+				console.log(err);
+				done();
+			});
+		tileEl.wxtile = wxtile;
 	} else {
 		// the layer hasn't been initilized yet, nothing to do.
 		// this happens due to lazy setup. layer.reload() is fired when ready and recreates all tiles.
@@ -282,18 +286,22 @@ export class WxTile {
 			return;
 		}
 		const baseColor = this.layer.style.streamLineColor.substr(0, 7);
-		const seed = ~~(timeStemp / 120);
+		timeStemp = timeStemp >> 7;
 		for (let i = 0; i < this.sLines.length; ++i) {
 			const sLine = this.sLines[i];
 			const sSize = sLine.length - 1;
-			let pt = (seed + i) % sSize; // to make more chaos // regular visual patterns make animation less smooth
-			// pt - the most opaque piece
+			// TODO:
+			// seed - is the most opaque piece
+			// let seed = (timeStemp + sLine[0].x + sLine[0].y) % (sSize * 2); // to make more chaos // regular visual patterns make animation less smooth
+			let seed = (timeStemp + (1 + sLine[0].x) * (1 + sLine[0].y)) % 30;
 			for (let k = 0; k < sSize; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
-				if (pt < k) pt += sSize;
-				const t = 1 - (pt - k) / sSize;
-				ctx.strokeStyle = baseColor + (~~(t * 255)).toString(16);
+				// if (pt < k) pt += sSize;
+				let t = 1 - (seed - k) / sSize;
+				if (t < 0 || t > 1) t = 0;
+				const col = (~~(t * 255)).toString(16);
+				ctx.strokeStyle = baseColor + (col.length < 2 ? '0' + col : col);
 				const w = 1 + ~~((1.2 - t) * 5);
 				ctx.lineWidth = w;
 				ctx.beginPath();
@@ -489,7 +497,17 @@ export class WxTile {
 
 		const ctx = this.canvasVectorCtx; //.getContext('2d');
 
-		ctx.font = this.layer.style.vectorType === 'barbs' ? '30px barbs' : '50px arrows';
+		switch (this.layer.style.vectorType) {
+			case 'barbs':
+				ctx.font = '40px barbs';
+				break;
+			case 'arrows':
+				ctx.font = '50px arrows';
+				break;
+			default:
+				ctx.font = this.layer.style.vectorType;
+		}
+		// ctx.font = this.layer.style.vectorType === 'barbs' ? '40px barbs' : '50px arrows';
 		ctx.textAlign = 'start';
 		ctx.textBaseline = 'alphabetic';
 		// ctx.clearRect(0, 0, 256, 256);
@@ -497,8 +515,8 @@ export class WxTile {
 
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
-		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
-		const gridStep = Math.min(2 ** (zdif + 5), 128);
+		// const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const gridStep = 32; //Math.min(2 ** (zdif + 5), 128);
 		for (let y = gridStep / 2; y < 256; y += gridStep) {
 			for (let x = gridStep / 2; x < 256; x += gridStep) {
 				const di = x + 1 + (y + 1) * 258;
@@ -545,8 +563,8 @@ export class WxTile {
 		const l = this.data[0];
 		const vecChar = 'L';
 
-		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
-		const gridStep = Math.min(2 ** (zdif + 5), 128);
+		// const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const gridStep = 32; //Math.min(2 ** (zdif + 5), 128);
 		for (let y = gridStep / 2; y < 256; y += gridStep) {
 			for (let x = gridStep / 2; x < 256; x += gridStep) {
 				const di = x + 1 + (y + 1) * 258;
@@ -587,7 +605,7 @@ export class WxTile {
 		const [l, u, v] = this.data;
 		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
 		const gridStep = Math.min(2 ** (zdif + 5), 128);
-		const steps = ~~(120 + zdif * 120);
+		const steps = ~~(120 + zdif * 60);
 		for (let y = 0; y <= 256; y += gridStep) {
 			for (let x = 0; x <= 256; x += gridStep) {
 				if (!l.raw[x + y * 258]) continue; // NODATA
