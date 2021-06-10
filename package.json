@@ -1,5 +1,5 @@
 {
-	"name": "@metservice/wxtiles-leaflet",
+	"name": "@metoceanapi/wxtiles-leaflet",
 	"version": "1.0.5",
 	"description": "WxTile JS lib to render wxtiles datalayers",
 	"main": "dist/es/bundle.js",
@@ -7,8 +7,7 @@
 	"scripts": {
 		"build": "rm -rf dist/ && node build.js && tsc",
 		"start": "DISABLE_HOT_RELOAD=true node watch-public.js",
-		"test": "echo \"Error: no test specified\" && exit 1",
-		"preversion": "npm run build && bump-changelog-version $npm_package_version && git add CHANGELOG.md"
+		"preversion": "npm run build && git add CHANGELOG.md"
 	},
 	"repository": {
 		"type": "git",
@@ -20,10 +19,7 @@
 		"url": "https://github.com/metoceanapi/wxtiles-leaflet/issues"
 	},
 	"homepage": "https://github.com/metoceanapi/wxtiles-leaflet#readme",
-	"prettier": "@metservice/prettier",
 	"devDependencies": {
-		"@metservice/mov-tools": "^1.3.0",
-		"@metservice/prettier": "^1.1.0",
 		"@types/leaflet": "^1.5.23",
 		"cors": "^2.8.5",
 		"esbuild": "^0.9.6",

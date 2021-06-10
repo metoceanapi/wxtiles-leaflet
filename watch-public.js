@@ -15,7 +15,7 @@ esbuild
 		loader: {
 			'.woff': 'base64',
 		},
-		target: 'es6',
+		target: 'es2015',
 		format: 'iife',
 		outfile: 'public/wxtile/wxtile.js',
 		globalName: 'wxtilejs',

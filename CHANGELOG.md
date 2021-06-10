@@ -11,14 +11,14 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ### added
 
-- coarse level in demo
-- flexible vector field density
-- more chaos
-
 ## [1.0.5] - 2021-05-26
 
 ### added
 
+- moved to @metoceanapi/wxtiles-leaflet, so it's public now
+- 'vectorType' can contain font size, either 'vectorType':'barbs' or 'vectorType':'45px barbs'
+- coarse level in demo
+- refurbishe vector field animation
 - type LibSetupObject export
 
 ### fixed
