@@ -6,7 +6,7 @@
 	"types": "dist/es/index.d.ts",
 	"scripts": {
 		"build": "rm -rf dist/ && node build.js && tsc",
-		"start": "DISABLE_HOT_RELOAD=true node watch-public.js",
+		"start": "node watch-public.js",
 		"preversion": "npm run build && git add CHANGELOG.md"
 	},
 	"repository": {
