@@ -1,13 +1,13 @@
 const esbuild = require('esbuild');
-const sassPlugin = require('esbuild-plugin-sass');
+// const sassPlugin = require('esbuild-plugin-sass');
 
 const sharedConfig = {
 	entryPoints: ['src/index.ts'],
 	bundle: true,
-	plugins: [sassPlugin()],
-	loader: {
-		'.woff': 'dataurl',
-	},
+	// plugins: [sassPlugin()],
+	// loader: {
+	// 	'.woff': 'dataurl',
+	// },
 	target: 'es2015',
 	minify: true,
 };

@@ -14,7 +14,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 ## [1.0.5] - 2021-05-26
 
 ### added
-
+- scss -> css
+- woff->src: url(data:font/woff;base64
 - moved to @metoceanapi/wxtiles-leaflet, so it's public now
 - 'vectorType' can contain font size, either 'vectorType':'barbs' or 'vectorType':'45px barbs'
 - coarse level in demo
