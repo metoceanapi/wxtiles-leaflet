@@ -1,6 +1,7 @@
 import { blurData, RGBtoHEX, HEXtoRGBA, createEl } from './wxtools';
 import { DataPicture, DataPictureIntegral, ColorStyleStrict } from './wxtools';
 import { RawCLUT } from './RawCLUT';
+import { coordToPixel, PixelsToLonLat } from './mercator';
 
 interface Coords {
 	z: number;
@@ -174,9 +175,33 @@ interface TileEl extends HTMLElement {
 	wxtile?: WxTile;
 }
 
-export function TileCreate({ layer, coords, done }): TileEl {
+export interface TileCreateParams {
+	layer: Layer;
+	coords: Coords;
+	done: () => void;
+}
+
+function makeBobx(coords: Coords): BoundaryMeta {
+	const [px, py] = coordToPixel(coords.x, coords.y);
+	const [west, north] = PixelsToLonLat(px, py, coords.z);
+	const [east, south] = PixelsToLonLat(px + 256, py + 256, coords.z);
+	return { west, north, east, south };
+}
+
+export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
 	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
+
 	if (layer.dataSource) {
+		const { boundaries } = layer.dataSource.meta;
+		if (boundaries?.boundaries180) {
+			const bbox = makeBobx(coords);
+			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
+			if (!boundaries.boundaries180.some(rectIntersect)) {
+				setTimeout(done);
+				return tileEl;
+			}
+		}
+
 		const wxtile = new WxTile({ layer, coords, tileEl });
 		wxtile
 			._load()
@@ -200,6 +225,33 @@ export function TileCreate({ layer, coords, done }): TileEl {
 
 type LoadDataFunc = (URL: string) => Promise<DataPicture>;
 
+export interface VariableMeta {
+	[name: string]: {
+		units: string;
+		min: number;
+		max: number;
+	};
+}
+
+export interface BoundaryMeta {
+	west: number;
+	north: number;
+	east: number;
+	south: number;
+}
+export interface AllBoundariesMeta {
+	boundariesnorm: BoundaryMeta;
+	boundaries180: BoundaryMeta[];
+	boundaries360: BoundaryMeta[];
+}
+
+export interface Meta {
+	variables: string[];
+	variablesMeta: VariableMeta;
+	maxZoom: number;
+	times: string[];
+	boundaries?: AllBoundariesMeta;
+}
 export interface DataSource {
 	serverURI: string; // server to fetch data from
 	ext: string; // png / webp (default) - wxtilesplitter output format
@@ -208,7 +260,7 @@ export interface DataSource {
 	name: string; // attribute of the dataSource to be used externally
 	styleName: string; // The name of the style (from styles.json) to apply for the layer
 	units: string;
-	meta: { maxZoom: number };
+	meta: Meta;
 	baseURL: string;
 }
 
@@ -240,7 +292,7 @@ export class WxTile {
 	sLines: SLine[] = [];
 	imData: ImageData;
 
-	constructor({ layer, coords, tileEl }) {
+	constructor({ layer, coords, tileEl }: { layer: Layer; coords: Coords; tileEl: TileEl }) {
 		this.coords = coords;
 		this.layer = layer;
 

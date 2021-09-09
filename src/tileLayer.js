@@ -357,6 +357,7 @@ export const WxGridLayerProto = {
 	},
 
 	setTimeAnimationMode(l = 2) {
+		// TODO: no need to make it coarse on deep zooms
 		this.oldMaxZoom = this.dataSource.meta.maxZoom;
 		const mz = this._map.getZoom();
 		const minMaxZoom = mz < this.oldMaxZoom ? mz : this.oldMaxZoom;
