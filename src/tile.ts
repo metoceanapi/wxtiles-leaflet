@@ -192,28 +192,11 @@ export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
 	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
 
 	if (layer.dataSource) {
-		const { boundaries } = layer.dataSource.meta;
-		if (boundaries?.boundaries180) {
-			const bbox = makeBobx(coords);
-			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
-			if (!boundaries.boundaries180.some(rectIntersect)) {
-				setTimeout(done);
-				return tileEl;
-			}
-		}
-
-		const wxtile = new WxTile({ layer, coords, tileEl });
-		wxtile
-			._load()
-			.then(() => {
-				wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
-				done(); // done is used after create (to appear on map), not after reload (it is on the map already).
-			})
-			.catch((err) => {
-				console.log(err);
-				done();
-			});
-		tileEl.wxtile = wxtile;
+		tileEl.wxtile = new WxTile({ layer, coords, tileEl });
+		tileEl.wxtile._load().then((wxtile) => {
+			wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
+			done(); // done is used after create (to appear on map), not after reload (it is on the map already).
+		});
 	} else {
 		// the layer hasn't been initilized yet, nothing to do.
 		// this happens due to lazy setup. layer.reload() is fired when ready and recreates all tiles.
@@ -290,7 +273,7 @@ export class WxTile {
 	canvasVectorCtx: CanvasRenderingContext2D;
 	data: DataPicture[] = [];
 	sLines: SLine[] = [];
-	imData: ImageData;
+	imData: ImageData | null = null;
 
 	constructor({ layer, coords, tileEl }: { layer: Layer; coords: Coords; tileEl: TileEl }) {
 		this.coords = coords;
@@ -311,11 +294,15 @@ export class WxTile {
 		this.canvasFillCtx = getCtx(this.canvasFill);
 		this.canvasSlinesCtx = getCtx(this.canvasSlines);
 		this.canvasVectorCtx = this.canvasFillCtx;
-		this.imData = this.canvasFillCtx.createImageData(256, 256);
 	}
 
 	draw() {
-		if (this.data.length === 0) return;
+		if (!this.data.length) {
+			this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
+			this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
+			return;
+		}
+
 		this._drawFillAndIsolines();
 		this._drawVector();
 		this._drawDegree();
@@ -372,28 +359,42 @@ export class WxTile {
 	} // getData
 
 	async _load() {
-		try {
-			const { upCoords, subCoords } = this._splitCoords(this.coords);
-
-			const URLs = this._coordsToURLs(upCoords);
-
-			const data = await Promise.all(URLs.map(this.layer.loadData));
-
-			const interpolator = this.layer.dataSource.units === 'degree' ? subDataDegree : subData;
-			// combine 'subCoords' and 'blurRadius' in 'processor'
-			const processor = (d: DataPicture) => interpolator(blurData(<DataPictureIntegral>d, this.layer.style.blurRadius), subCoords);
-			this.data = data.map(processor); // preprocess all loaded data
-
-			if (this.layer.vector) {
-				this._vectorPrepare();
-				this._createSLines();
+		const { coords, layer } = this;
+		const { boundaries } = layer.dataSource.meta;
+		if (boundaries?.boundaries180) {
+			const bbox = makeBobx(coords);
+			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
+			if (!boundaries.boundaries180.some(rectIntersect)) {
+				this.data = [];
+				this.imData = null;
+				return this;
 			}
+		}
+
+		const { upCoords, subCoords } = this._splitCoords(coords);
+
+		const URLs = this._coordsToURLs(upCoords);
+
+		let data: DataPicture[] = [];
+		try {
+			data = await Promise.all(URLs.map(layer.loadData));
 		} catch (e) {
 			this.data = [];
-			this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
-			this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
-			// this.canvasVector.getContext('2d').clearRect(0, 0, 256, 256);
+			this.imData = null;
+			return this;
 		}
+
+		const interpolator = layer.dataSource.units === 'degree' ? subDataDegree : subData;
+		// combine 'subCoords' and 'blurRadius' in 'processor'
+		const processor = (d: DataPicture) => interpolator(blurData(<DataPictureIntegral>d, this.layer.style.blurRadius), subCoords);
+		this.data = data.map(processor); // preprocess all loaded data
+		this.imData = this.canvasFillCtx.createImageData(256, 256);
+
+		if (this.layer.vector) {
+			this._vectorPrepare();
+			this._createSLines();
+		}
+
 		return this;
 	} // _load
 
@@ -413,6 +414,7 @@ export class WxTile {
 	} // _coordsToURLs
 
 	_vectorPrepare() {
+		if (this.data.length !== 2) throw 'this.data !== 2';
 		// fill data[0] with precalculated vectors' lengths.
 		this.data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
 		const [l, u, v] = this.data; // length, u, v components
@@ -430,9 +432,11 @@ export class WxTile {
 	} // _vectorPrepare
 
 	_drawFillAndIsolines() {
-		const ctx = this.canvasFillCtx; //.getContext('2d');
-		ctx.clearRect(0, 0, 256, 256);
-		const imData = this.imData;
+		const { imData } = this;
+		if (!imData) throw '_drawFillAndIsolines: !imData';
+
+		const { canvasFillCtx } = this;
+		canvasFillCtx.clearRect(0, 0, 256, 256);
 		const im = new Uint32Array(imData.data.buffer); // a usefull representation of image's bytes (same memory)
 		const { raw } = this.data[0]; // scalar data
 		const { clut, style } = this.layer;
@@ -495,25 +499,25 @@ export class WxTile {
 			} // for y
 		} // if (style.isolineColor != 'none')
 
-		ctx.putImageData(imData, 0, 0);
-		// draw Info
+		canvasFillCtx.putImageData(imData, 0, 0);
 
-		if (info.length !== 0) {
-			ctx.font = '1.1em Sans-serif';
-			ctx.lineWidth = 2;
-			ctx.strokeStyle = 'white'; // RGBtoHEX(p.c); // alfa = 255
-			ctx.fillStyle = 'black';
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
+		// drawing Info
+		if (!info.length) {
+			canvasFillCtx.font = '1.1em Sans-serif';
+			canvasFillCtx.lineWidth = 2;
+			canvasFillCtx.strokeStyle = 'white'; // RGBtoHEX(p.c); // alfa = 255
+			canvasFillCtx.fillStyle = 'black';
+			canvasFillCtx.textAlign = 'center';
+			canvasFillCtx.textBaseline = 'middle';
 			for (const { x, y, d, dr, db, mli } of info) {
 				const val = this.layer.clut.ticks[mli].dataString; // select value from levels/colorMap
 				const angle = Math.atan2(d - dr, db - d); // rotate angle: we can use RAW d, dd, and dr for atan2!
-				ctx.save();
-				ctx.translate(x, y);
-				ctx.rotate(angle < -1.57 || angle > 1.57 ? angle + 3.14 : angle); // so text is always up side up
-				ctx.strokeText(val, 0, 0);
-				ctx.fillText(val, 0, 0);
-				ctx.restore();
+				canvasFillCtx.save();
+				canvasFillCtx.translate(x, y);
+				canvasFillCtx.rotate(angle < -1.57 || angle > 1.57 ? angle + 3.14 : angle); // so text is always up side up
+				canvasFillCtx.strokeText(val, 0, 0);
+				canvasFillCtx.fillText(val, 0, 0);
+				canvasFillCtx.restore();
 			}
 		} // if info.length
 	} // drawIsolines
@@ -521,49 +525,49 @@ export class WxTile {
 	_drawStaticSlines() {
 		// 'timeStemp' is a time tick given by the browser's scheduller
 		if (!this.sLines.length || !this.layer.style.streamLineStatic) return;
-		const ctx = this.canvasSlinesCtx; //.getContext('2d');
-		ctx.clearRect(0, 0, 256, 256);
+		const { canvasSlinesCtx } = this;
+		canvasSlinesCtx.clearRect(0, 0, 256, 256);
 		if (this.layer.style.streamLineColor === 'none') {
 			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
-		ctx.lineWidth = 2;
-		ctx.strokeStyle = this.layer.style.streamLineColor; // color
-		ctx.beginPath();
+		canvasSlinesCtx.lineWidth = 2;
+		canvasSlinesCtx.strokeStyle = this.layer.style.streamLineColor; // color
+		canvasSlinesCtx.beginPath();
 		for (let i = this.sLines.length; i--; ) {
 			const sLine = this.sLines[i];
 			for (let k = 0; k < sLine.length - 1; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
-				ctx.moveTo(p0.x, p0.y);
-				ctx.lineTo(p1.x, p1.y);
+				canvasSlinesCtx.moveTo(p0.x, p0.y);
+				canvasSlinesCtx.lineTo(p1.x, p1.y);
 			}
 		}
-		ctx.stroke();
+		canvasSlinesCtx.stroke();
 	}
 
 	_drawVector() {
 		if (!this.layer.vector || !this.layer.clut.DataToKnots) return;
 		if (!this.layer.style.vectorColor || this.layer.style.vectorColor === 'none') return;
 		if (!this.layer.style.vectorType || this.layer.style.vectorType === 'none') return;
+		if (this.data.length !== 3) throw 'this.data.length !== 3';
+		const [l, u, v] = this.data;
 
-		const ctx = this.canvasVectorCtx; //.getContext('2d');
+		const { canvasVectorCtx } = this;
 
 		switch (this.layer.style.vectorType) {
 			case 'barbs':
-				ctx.font = '40px barbs';
+				canvasVectorCtx.font = '40px barbs';
 				break;
 			case 'arrows':
-				ctx.font = '50px arrows';
+				canvasVectorCtx.font = '50px arrows';
 				break;
 			default:
-				ctx.font = this.layer.style.vectorType;
+				canvasVectorCtx.font = this.layer.style.vectorType;
 		}
-		// ctx.font = this.layer.style.vectorType === 'barbs' ? '40px barbs' : '50px arrows';
-		ctx.textAlign = 'start';
-		ctx.textBaseline = 'alphabetic';
-		// ctx.clearRect(0, 0, 256, 256);
-		const [l, u, v] = this.data;
+
+		canvasVectorCtx.textAlign = 'start';
+		canvasVectorCtx.textBaseline = 'alphabetic';
 
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
@@ -582,21 +586,21 @@ export class WxTile {
 				const vecChar = String.fromCharCode(vecCode);
 				switch (this.layer.style.vectorColor) {
 					case 'inverted':
-						ctx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					case 'fill':
-						ctx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					default:
-						ctx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
+						canvasVectorCtx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
 						break;
 				} // switch isoline_style
 
-				ctx.save();
-				ctx.translate(x, y);
-				ctx.rotate(ang + addDegrees);
-				ctx.fillText(vecChar, 0, 0);
-				ctx.restore();
+				canvasVectorCtx.save();
+				canvasVectorCtx.translate(x, y);
+				canvasVectorCtx.rotate(ang + addDegrees);
+				canvasVectorCtx.fillText(vecChar, 0, 0);
+				canvasVectorCtx.restore();
 			} // for x
 		} // for y
 	} // _drawVector
@@ -604,13 +608,13 @@ export class WxTile {
 	_drawDegree() {
 		if (this.layer.dataSource.units !== 'degree') return;
 
-		const ctx = this.canvasVectorCtx; //.getContext('2d');
+		const { canvasVectorCtx } = this;
 
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
-		ctx.font = '50px arrows';
-		ctx.textAlign = 'start';
-		ctx.textBaseline = 'alphabetic';
+		canvasVectorCtx.font = '50px arrows';
+		canvasVectorCtx.textAlign = 'start';
+		canvasVectorCtx.textBaseline = 'alphabetic';
 		// ctx.clearRect(0, 0, 256, 256);
 		const l = this.data[0];
 		const vecChar = 'L';
@@ -625,26 +629,27 @@ export class WxTile {
 				const ang = angDeg * 0.01745329251; // pi/180
 				switch (this.layer.style.vectorColor) {
 					case 'inverted':
-						ctx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					case 'fill':
-						ctx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					default:
-						ctx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
+						canvasVectorCtx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
 						break;
 				} // switch isoline_style
 
-				ctx.save();
-				ctx.translate(x, y);
-				ctx.rotate(ang + addDegrees);
-				ctx.fillText(vecChar, 0, 0);
-				ctx.restore();
+				canvasVectorCtx.save();
+				canvasVectorCtx.translate(x, y);
+				canvasVectorCtx.rotate(ang + addDegrees);
+				canvasVectorCtx.fillText(vecChar, 0, 0);
+				canvasVectorCtx.restore();
 			} // for x
 		} // for y
 	} // _drawDegree
 
 	_createSLines() {
+		if (this.data.length !== 3) throw 'this.data.length !== 3';
 		if (!this.layer.style.streamLineColor || this.layer.style.streamLineColor === 'none') return;
 		const factor = this.layer.style.streamLineSpeedFactor || 1;
 

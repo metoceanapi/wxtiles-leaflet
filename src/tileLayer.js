@@ -277,8 +277,8 @@ export const WxGridLayerProto = {
 			/* Ugly workaround for datasets like NZ_Radar where each timestep can have minmax */
 			/* I check if minmax changed, then get\set a new minmax and re-setup the style */
 			reloadPromice.then(() => {
-				const wxtile = this.wxtiles.entries().next().value?.[1];
-				if (!wxtile) return;
+				const wxtile = this.wxtiles.values().next().value;
+				if (!wxtile?.data.length) return;
 				const [cmin, cmax] = this.dataSource.minmax[0];
 				const { dmin, dmax } = wxtile.data[0];
 				if (Math.abs(dmin - cmin) > 0.01 || Math.abs(dmax - cmax) > 0.01) {
@@ -288,7 +288,7 @@ export const WxGridLayerProto = {
 				}
 			});
 
-			return reloadPromice; // TODO: check min max after setTime!!!!
+			return reloadPromice;
 		}
 		return Promise.resolve();
 	}, // setTime
