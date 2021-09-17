@@ -11,6 +11,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ### added
 
+- updated dependencies and npn to 7.24.0
+- updated fonts
 - extended meta and boundaries check
 
 ## [1.0.5] - 2021-05-26

@@ -4,10 +4,10 @@ const esbuild = require('esbuild');
 const sharedConfig = {
 	entryPoints: ['src/index.ts'],
 	bundle: true,
-	// plugins: [sassPlugin()],
-	// loader: {
-	// 	'.woff': 'dataurl',
-	// },
+	loader: {
+		'.ttf': 'base64',
+		'.woff': 'base64',
+	},
 	target: 'es2015',
 	minify: true,
 };

@@ -1,5 +1,4 @@
 const esbuild = require('esbuild');
-// const sassPlugin = require('esbuild-plugin-sass');
 const express = require('express');
 
 // let watchResponse;
@@ -10,9 +9,10 @@ esbuild
 		entryPoints: ['src/index.ts'],
 		bundle: true,
 		// plugins: [sassPlugin()],
-		// loader: {
-		// 	'.woff': 'dataurl',
-		// },
+		loader: {
+			'.ttf': 'base64',
+			'.woff': 'base64',
+		},
 		target: 'es2015',
 		format: 'iife',
 		outfile: 'public/wxtile/wxtile.js',

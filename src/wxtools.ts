@@ -160,9 +160,6 @@ declare global {
 	interface Window {
 		wxlogging: boolean;
 	}
-	interface Document {
-		fonts: { load: (n: string) => any };
-	}
 }
 
 let _units: Units;
