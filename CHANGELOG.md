@@ -9,6 +9,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.6] - 2021-09-17
+
 ### added
 
 - updated dependencies and npn to 7.24.0
