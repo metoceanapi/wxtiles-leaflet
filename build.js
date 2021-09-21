@@ -23,8 +23,8 @@ esbuild
 	.build({
 		...sharedConfig,
 		format: 'iife',
-		// outdir: 'dist/web',
 		outfile: 'dist/web/wxtiles.js',
+		globalName: 'wxtilejs',
 	})
 	.catch((e) => console.error(e.message));
 
@@ -33,7 +33,6 @@ esbuild
 	.build({
 		...sharedConfig,
 		format: 'esm',
-		// outdir: 'dist/es',
-		outfile: 'dist/es/wxtiles.js',
+		outfile: 'dist/es/bundle.js',
 	})
 	.catch((e) => console.error(e.message));
