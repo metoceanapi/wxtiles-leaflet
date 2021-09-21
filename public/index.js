@@ -1,6 +1,6 @@
 'use strict';
 
-const { WxTileLogging, WxTileLibSetup, WxTileWatermark, WxTileLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
+const { WxTilesLogging, WxTilesLibSetup, WxTilesWatermark, WxTilesLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
 const L = window.L;
 
 let map;
@@ -96,7 +96,7 @@ async function loadVariable_selectVariableEl_onchange() {
 
 	// save in order to delete old layer
 	const oldLayer = layer; // this is to store oldLayer in order a user change layers too fast.
-	layer = WxTileLayer(layerSettings);
+	layer = WxTilesLayer(layerSettings);
 	await layer.getSetupCompletePromise(); // 'complete' doesn't mean 'loaded' !!!
 	layer.addTo(map);
 	layerControl.addOverlay(layer, layerSettings.dataSource.name);
@@ -373,9 +373,9 @@ async function start() {
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
 	map = L.map('map', config.map);
 
-	// Setup WxTile lib
-	WxTileLogging(true); // use wxtiles logging -> console.log
-	WxTileWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
+	// Setup WxTiles lib
+	WxTilesLogging(true); // use wxtiles logging -> console.log
+	WxTilesWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
 	layerControl = L.control.layers(null, null, { position: 'topright', autoZIndex: false, collapsed: false }).addTo(map);
 	config.baseLayers.map((baseLayer) => {
 		const layer = L.tileLayer(baseLayer.URL, baseLayer.options);
@@ -408,7 +408,7 @@ async function start() {
 	}
 
 	// ESSENTIAL step to get lib ready.
-	WxTileLibSetup(wxlibCustomSettings); // load fonts and styles, units, colorschemas - empty => defaults
+	WxTilesLibSetup(wxlibCustomSettings); // load fonts and styles, units, colorschemas - empty => defaults
 	await document.fonts.ready; // !!! IMPORTANT: make sure fonts (barbs, arrows, etc) are loaded
 
 	// WxDebugCoordsLayer().addTo(map);

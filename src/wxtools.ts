@@ -89,7 +89,7 @@ export interface LibSetupObject {
 }
 
 /// some random usefull stuff
-export function WxTileLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: LibSetupObject = {}): void {
+export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: LibSetupObject = {}): void {
 	if (window.wxlogging) {
 		console.log('WxTile lib setup: start');
 	}

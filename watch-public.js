@@ -15,7 +15,8 @@ const sharedConfig = {
 	],
 	target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
 	globalName: 'wxtilesjs',
-	minify: true,
+	minify: false,
+	sourcemap: true,
 };
 
 // build for web
