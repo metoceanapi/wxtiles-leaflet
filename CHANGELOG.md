@@ -9,6 +9,10 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### fixed
+
+- npm publish cleanup
+
 ## [1.0.6] - 2021-09-17
 
 ### added

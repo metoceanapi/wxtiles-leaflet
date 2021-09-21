@@ -1,2 +1,6 @@
 src/
 public/
+examples/
+*.js
+*.json
+.*

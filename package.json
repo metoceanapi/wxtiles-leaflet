@@ -21,7 +21,7 @@
 	"homepage": "https://github.com/metoceanapi/wxtiles-leaflet#readme",
 	"devDependencies": {
 		"@types/leaflet": "^1.7.5",
-		"esbuild": "^0.11.23",
+		"esbuild": "^0.12.28",
 		"express": "^4.17.1",
 		"leaflet": "^1.7.1",
 		"typescript": "^4.4.3"
