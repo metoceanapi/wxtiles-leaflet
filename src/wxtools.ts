@@ -159,6 +159,7 @@ const __colorStyles_default_preset: ColorStylesStrict = {
 declare global {
 	interface Window {
 		wxlogging: boolean;
+		L: any; // reference to the external Leaflet library
 	}
 }
 

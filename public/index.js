@@ -1,6 +1,6 @@
 'use strict';
 
-const { WxTileLogging, WxTileLibSetup, WxTileWatermark, WxTileLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilejs;
+const { WxTileLogging, WxTileLibSetup, WxTileWatermark, WxTileLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
 const L = window.L;
 
 let map;

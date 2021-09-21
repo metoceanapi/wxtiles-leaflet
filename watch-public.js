@@ -1,24 +1,31 @@
 const esbuild = require('esbuild');
 const express = require('express');
+const { externalGlobalPlugin } = require('esbuild-plugin-external-global');
 
-// let watchResponse;
-// const disableHotReload = process.env.DISABLE_HOT_RELOAD === 'true';
+const sharedConfig = {
+	entryPoints: ['src/wxtiles.ts'],
+	bundle: true,
+	loader: {
+		'.woff': 'base64',
+	},
+	plugins: [
+		externalGlobalPlugin({
+			leaflet: 'window.L',
+		}),
+	],
+	target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
+	globalName: 'wxtilesjs',
+	minify: true,
+};
 
+// build for web
 esbuild
 	.build({
-		entryPoints: ['src/index.ts'],
-		bundle: true,
-		// plugins: [sassPlugin()],
-		loader: {
-			'.ttf': 'base64',
-			'.woff': 'base64',
-		},
-		target: 'es2015',
+		...sharedConfig,
 		format: 'iife',
-		outfile: 'public/wxtile/wxtile.js',
-		globalName: 'wxtilejs',
+		outdir: 'public/wxtiles',
+
 		sourcemap: true,
-		minify: false,
 		watch: {
 			onRebuild(error, result) {
 				if (error) {

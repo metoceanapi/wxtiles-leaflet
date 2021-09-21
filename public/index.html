@@ -29,7 +29,7 @@
 
 		<!-- WxTile lib goes here -->
 		<link rel="stylesheet" href="./wxtile/wxtile.css" />
-		<script src="./wxtile/wxtile.js"></script>
+		<script src="./wxtiles/wxtiles.js"></script>
 
 		<!-- index.js -->
 		<script defer src="index.js"></script>
@@ -76,42 +76,5 @@
 		</div>
 		<div id="infoPanel" style="width: 30em; border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)"></div>
 		<canvas id="legend" width="600px" height="40px" style="border: 2px"></canvas>
-
-		<script>
-			if (!!window.EventSource) {
-				var source = new EventSource('/watch');
-
-				source.addEventListener(
-					'message',
-					function (e) {
-						window.location.reload();
-					},
-					false
-				);
-
-				source.addEventListener(
-					'open',
-					function (e) {
-						console.log('Connected to dev server');
-					},
-					false
-				);
-
-				source.addEventListener(
-					'error',
-					function (e) {
-						if (e.eventPhase == EventSource.CLOSED) source.close();
-						if (e.target.readyState == EventSource.CLOSED) {
-							console.warn('Disconnected from dev server');
-						} else if (e.target.readyState == EventSource.CONNECTING) {
-							console.info('Connecting to dev server');
-						}
-					},
-					false
-				);
-			} else {
-				console.log("Your browser doesn't support SSE");
-			}
-		</script>
 	</body>
 </html>

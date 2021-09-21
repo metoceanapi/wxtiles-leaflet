@@ -1,8 +1,13 @@
+// https://everythingfonts.com/ttf-to-woff - converter
+// https://caniuse.com/?search=woff
+import './styles.css';
+
 import { WxGridLayerProto } from './tileLayer';
 export { WxTileLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
 
-// import * as L from 'leaflet';
-const L = window.L;
+import L from 'leaflet';
+
+// const L = window.L;
 const WxGridLayerL = L.GridLayer.extend(WxGridLayerProto);
 
 export function WxTileLayer(settings: any) {

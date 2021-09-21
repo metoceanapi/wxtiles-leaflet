@@ -1,16 +1,31 @@
 const esbuild = require('esbuild');
-// const sassPlugin = require('esbuild-plugin-sass');
+const express = require('express');
+const { externalGlobalPlugin } = require('esbuild-plugin-external-global');
 
 const sharedConfig = {
-	entryPoints: ['src/index.ts'],
+	entryPoints: ['src/wxtiles.ts'],
 	bundle: true,
 	loader: {
-		'.ttf': 'base64',
 		'.woff': 'base64',
 	},
-	target: 'es2015',
+	plugins: [
+		externalGlobalPlugin({
+			leaflet: 'window.L',
+		}),
+	],
+	target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
+	globalName: 'wxtilesjs',
 	minify: true,
 };
+
+// build for web
+esbuild
+	.build({
+		...sharedConfig,
+		format: 'iife',
+		outdir: 'dist/web',
+	})
+	.catch((e) => console.error(e.message));
 
 // BUILD as ESModules
 esbuild
@@ -18,15 +33,5 @@ esbuild
 		...sharedConfig,
 		format: 'esm',
 		outfile: 'dist/es/bundle.js',
-	})
-	.catch((e) => console.error(e.message));
-
-// build for web
-esbuild
-	.build({
-		...sharedConfig,
-		format: 'iife',
-		outfile: 'dist/web/wxtile.js',
-		globalName: 'wxtilejs',
 	})
 	.catch((e) => console.error(e.message));

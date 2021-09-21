@@ -12,6 +12,7 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 ### fixed
 
 - npm publish cleanup
+- esbuild with external leaflet
 
 ## [1.0.6] - 2021-09-17
 
