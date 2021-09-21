@@ -24,7 +24,7 @@ esbuild
 		...sharedConfig,
 		format: 'iife',
 		outfile: 'dist/web/wxtiles.js',
-		globalName: 'wxtilejs',
+		globalName: 'wxtilesjs',
 	})
 	.catch((e) => console.error(e.message));
 
