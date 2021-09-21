@@ -32,6 +32,6 @@ esbuild
 	.build({
 		...sharedConfig,
 		format: 'esm',
-		outfile: 'dist/es/bundle.js',
+		outdir: 'dist/es',
 	})
 	.catch((e) => console.error(e.message));
