@@ -1,8 +1,8 @@
 {
 	"name": "@metoceanapi/wxtiles-leaflet",
-	"version": "1.0.6-6",
+	"version": "1.0.6-7",
 	"description": "WxTile JS lib to render wxtiles datalayers",
-	"main": "dist/es/bundle.js",
+	"main": "dist/es/wxtiles.js",
 	"types": "dist/es/wxtiles.d.ts",
 	"scripts": {
 		"build": "rm -rf dist/ && node build.js && tsc",

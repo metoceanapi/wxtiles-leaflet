@@ -33,6 +33,6 @@ esbuild
 	.build({
 		...sharedConfig,
 		format: 'esm',
-		outfile: 'dist/es/bundle.js',
+		outfile: 'dist/es/wxtiles.js',
 	})
 	.catch((e) => console.error(e.message));
