@@ -1,54 +1,23 @@
+declare global {
+	interface Window {
+		wxlogging: boolean;
+		L: any; // reference to the external Leaflet library
+	}
+}
+
+import { __units_default_preset } from './defaults/uconv';
+import { __colorSchemes_default_preset } from './defaults/colorschemes';
+import { __colorStyles_default_preset } from './defaults/styles';
+
 export type UnitTuple = [string, number, number?];
 
 export interface Units {
 	[unit: string]: UnitTuple;
 }
 
-const __units_default_preset: Units = {
-	comment1: ["degC: ['K', 1, 273.15] -> degC = K * 1 + 273.15", 0],
-	comment2: ["hPa: ['Pa', 100]' -> hPa = Pa * 100 + 0 (0 - could be ommited)", 0],
-	K: ['K', 1],
-	F: ['K', 0.5555555555, 255.372222222],
-	C: ['K', 1, 273.15],
-	degC: ['K', 1, 273.15],
-	'kg/m^2/s': ['kg/m^2/s', 1],
-	'Kg m**-2 s**-1': ['kg/m^2/s', 1],
-	'W/m^2': ['W/m^2', 1],
-	'W m**2': ['W/m^2', 1],
-	'm/s': ['m/s', 1],
-	'm s**-1': ['m/s', 1],
-	knot: ['m/s', 0.514444],
-	knots: ['m/s', 0.514444],
-	'km/h': ['m/s', 0.27777777777],
-	s: ['s', 1],
-	sec: ['s', 1],
-	h: ['s', 3600],
-	min: ['s', 60],
-	m: ['m', 1],
-	cm: ['m', 0.01],
-	inch: ['m', 0.0254],
-	Pa: ['Pa', 1],
-	hPa: ['Pa', 100],
-};
-
 export interface ColorSchemes {
 	[name: string]: string[];
 }
-
-const __colorSchemes_default_preset: ColorSchemes = {
-	none: ['#00000000', '#00000000'],
-	rainbow: ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f'],
-	rainbow2: ['#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f', '#f00'],
-	rainbowzerro: ['#ff000000', '#f00', '#ff0', '#0f0', '#0ff', '#00f', '#f0f'],
-	bluebird: ['#00f', '#f0f', '#0ff', '#80f', '#88f'],
-	bluebirdzerro: ['#0000ff00', '#00f', '#f0f', '#0ff', '#80f', '#88f'],
-	bw: ['#000', '#fff'],
-	wb: ['#fff', '#000'],
-	redish: ['#f0f', '#f00', '#ff0'],
-	greenish: ['#ff0', '#0f0', '#0ff'],
-	blueish: ['#f0f', '#00f', '#0ff'],
-	hspastel: ['#AC6EA4FF', '#8E92BDFF', '#ACD4DEFF', '#E9DC8EFF', '#E7A97DFF', '#E59074FF', '#BE7E68FF', '#A88F86FF'],
-};
 
 export type colorMapTuple = [number, string];
 
@@ -107,60 +76,6 @@ export interface ColorStyleStrict {
 
 export interface ColorStylesStrict {
 	[name: string]: ColorStyleStrict;
-}
-
-const __colorStyles_default_preset: ColorStylesStrict = {
-	base: {
-		parent: undefined,
-		name: 'base',
-		fill: 'gradient',
-		isolineColor: 'inverted',
-		isolineText: true,
-		vectorType: 'arrows',
-		vectorColor: 'inverted',
-		streamLineColor: '#777',
-		streamLineSpeedFactor: 1,
-		streamLineStatic: false,
-		showBelowMin: true,
-		showAboveMax: true,
-		colorScheme: 'rainbow',
-		colors: undefined,
-		colorMap: undefined,
-		levels: undefined,
-		blurRadius: 0,
-		addDegrees: 0,
-		units: '',
-		extraUnits: undefined,
-	},
-	custom: {
-		parent: undefined,
-		name: 'custom',
-		fill: 'gradient',
-		isolineColor: 'inverted',
-		isolineText: true,
-		vectorType: 'arrows',
-		vectorColor: 'inverted',
-		streamLineColor: '#777',
-		streamLineSpeedFactor: 1,
-		streamLineStatic: false,
-		showBelowMin: true,
-		showAboveMax: true,
-		colorScheme: 'rainbow',
-		colors: undefined,
-		colorMap: undefined,
-		levels: undefined,
-		blurRadius: 0,
-		addDegrees: 0,
-		units: '',
-		extraUnits: undefined,
-	},
-};
-
-declare global {
-	interface Window {
-		wxlogging: boolean;
-		L: any; // reference to the external Leaflet library
-	}
 }
 
 let _units: Units;
@@ -225,56 +140,6 @@ export function makeConverter(from: string, to: string, customUnits?: Units): Co
 	return b ? (x: number) => a * x + b : (x: number) => a * x;
 }
 
-function unrollStylesParent1(stylesIn: ColorStylesWeakMixed): ColorStylesStrict {
-	// unroll arrays of styles => plain styles to apply ineritance
-	/*
-	{
-		"var":[
-			{style1},
-			{style2}
-		]
-	}
-	 unrolled into
-	{
-		"var":[
-			{style1},
-			{style2}
-		],
-		"var[0]":{*style1},
-		"var[1]":{*style2},
-	}
-	I use softycopy, so {*style1} === {style1}, etc.
-	So it's easier to apply inheritance.
-	*/
-	const deArrStyles = <ColorStylesWeakMixed>Object.assign({}, stylesIn, __colorStyles_default_preset); // deep copy, so could be (and is) changed
-	const deArrStyles2 = Object.assign({}, __colorStyles_default_preset);
-	for (const name in deArrStyles) {
-		const styleA = deArrStyles[name];
-		if (Array.isArray(styleA)) {
-			for (let i = 0; i < styleA.length; ++i) {
-				deArrStyles[name + '[' + i + ']'] = styleA[i];
-			}
-			delete deArrStyles[name];
-		}
-	}
-
-	const styles = <ColorStylesStrict>Object.assign({}, deArrStyles);
-
-	// function to apply inheritance
-	const inheritParent = (styleName: string): void => {
-		if (styleName === 'base') return; // nothing to inherit
-		const style = styles[styleName]; // there are no arrays by this point
-		if (!style.parent || !(style.parent in styles)) style.parent = 'base';
-		inheritParent(style.parent);
-		Object.assign(style, Object.assign({}, styles[style.parent], style)); // this ugly construction changes style 'in place' so it is a soft-copy. huray!
-		style.parent = undefined; // multiple inheritance of 'base' is possible. what ever...
-	};
-
-	// For every style inherit from its parent
-	Object.keys(styles).forEach(inheritParent);
-	return styles;
-}
-
 function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStrict {
 	const stylesInc: ColorStylesIncomplete = Object.assign({}, __colorStyles_default_preset);
 	for (const name in stylesArrInc) {
@@ -327,12 +192,14 @@ async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEle
 	const abortFunc = () => {
 		img.src = '';
 	}; // stop loading
+
 	signal.addEventListener('abort', abortFunc);
 	////// Method 1
 	img.src = url;
 	await img.decode();
 	signal.removeEventListener('abort', abortFunc);
 	return img;
+	
 	//// Method 2
 	// return new Promise((resolve) => {
 	// 	img.onload = () => {signal.removeEventListener('abort', abortFunc);resolve(img);};

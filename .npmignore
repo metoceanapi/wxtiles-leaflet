@@ -1,6 +1,8 @@
-src/
-public/
 examples/
-*.js
-*.json
+public/
+src/
 .*
+*.json
+
+build.js
+watch-public.js
