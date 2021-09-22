@@ -3,31 +3,25 @@
 import './styles.css';
 
 import L from 'leaflet';
-import { WxTilesLayerSettings, WxTilesLayer } from './tilesLayer';
+
+import { WXLOG } from './wxtools';
+import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
 export { WxTilesLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
+export { WxTilesLayer, WxTilesLayerSettings, DataSource } from './tilesLayer';
 
 export function CreateWxTilesLayer(settings: WxTilesLayerSettings): WxTilesLayer {
 	return new WxTilesLayer(settings);
 }
 
-// const WatermarkProto = {
-// 	options: { URI: '' },
-// 	onAdd() {
-// 		const w = document.createElement('img');
-// 		w.src = this.options.URI;
-// 		w.className = 'wxtiles-logo';
-// 		return w;
-// 	},
-// };
-// const WxWatermark = L.Control.extend(WatermarkProto);
-
-class WxWatermark extends L.Control {
+export class WxWatermark extends L.Control {
 	URI: string;
+
 	constructor(options: L.ControlOptions & { URI: string }) {
 		super(options);
 		this.URI = options.URI;
 	}
+
 	onAdd() {
 		const w = document.createElement('img');
 		w.src = this.URI;
@@ -36,7 +30,7 @@ class WxWatermark extends L.Control {
 	}
 }
 
-export function WxTilesWatermark(options: any): WxWatermark {
+export function CreateWxTilesWatermark(options: any): WxWatermark {
 	if (window.wxlogging) {
 		console.log('Add watermark:', JSON.stringify(options));
 	}
@@ -44,25 +38,21 @@ export function WxTilesWatermark(options: any): WxWatermark {
 	return new WxWatermark(options);
 }
 
-const WxDebugLayer = L.GridLayer.extend({
+export class WxDebugLayer extends L.GridLayer {
 	createTile(coords: { x: number; y: number; z: number }) {
 		const tile = document.createElement('div');
 		tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
 		tile.style.outline = '1px solid red';
 		return tile;
-	},
-});
-
-export function WxDebugCoordsLayer(): L.GridLayer {
-	if (window.wxlogging) {
-		console.log('Add WxDebugCoordsLayer:');
 	}
-	const debLayer = new WxDebugLayer();
-	debLayer.setZIndex(1000);
-	return debLayer;
 }
 
-export function WxTilesGroupLayer(group: WxTilesLayerSettings[], options?: L.LayerOptions | undefined) {
+export function CreateWxDebugCoordsLayer(): WxDebugLayer {
+	WXLOG('Add WxDebugCoordsLayer:');
+	return new WxDebugLayer().setZIndex(1000);
+}
+
+export function CreateWxTilesGroupLayer(group: WxTilesLayerSettings[], options?: L.LayerOptions): L.LayerGroup<any> {
 	return L.layerGroup(group.map(CreateWxTilesLayer), options);
 }
 

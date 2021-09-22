@@ -90,24 +90,18 @@ export interface LibSetupObject {
 
 /// some random usefull stuff
 export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: LibSetupObject = {}): void {
-	if (window.wxlogging) {
-		console.log('WxTile lib setup: start');
-	}
+	WXLOG('WxTile lib setup: start');
 	_units = Object.assign({}, __units_default_preset, units);
 	_colorSchemes = Object.assign({}, colorSchemes, __colorSchemes_default_preset);
-	// const toUnroll = Object.assign({}, colorStyles, __colorStyles_default_preset);
-	_colorStylesUnrolled = unrollStylesParent(colorStyles);
-	if (window.wxlogging) {
-		console.log('WxTile lib setup: styles unrolled');
-	}
+	const toUnroll = Object.assign({}, colorStyles, __colorStyles_default_preset);
+	_colorStylesUnrolled = unrollStylesParent(toUnroll);
+	WXLOG('WxTile lib setup: styles unrolled');
 
 	// Make sure fonts are loaded & ready!
 	document.fonts.load('32px barbs');
 	document.fonts.load('32px arrows');
 
-	if (window.wxlogging) {
-		console.log('WxTile lib setup is done' + JSON.stringify({ colorStyles, units, colorSchemes }));
-	}
+	WXLOG('WxTile lib setup is done.');
 }
 
 export function WxGetColorStyles(): ColorStylesStrict {

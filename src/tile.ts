@@ -217,17 +217,17 @@ interface SLinePoint {
 type SLine = SLinePoint[];
 
 export class WxTile {
-	layer: WxTilesLayer;
-	coords: Coords;
-	canvasFill: HTMLCanvasElement;
-	canvasSlines: HTMLCanvasElement;
-	canvasVector: HTMLCanvasElement;
-	canvasFillCtx: CanvasRenderingContext2D;
-	canvasSlinesCtx: CanvasRenderingContext2D;
-	canvasVectorCtx: CanvasRenderingContext2D;
-	data: DataPicture[] = [];
-	sLines: SLine[] = [];
-	imData: ImageData | null = null;
+	protected layer: WxTilesLayer;
+	protected coords: Coords;
+	protected canvasFill: HTMLCanvasElement;
+	protected canvasSlines: HTMLCanvasElement;
+	protected canvasVector: HTMLCanvasElement;
+	protected canvasFillCtx: CanvasRenderingContext2D;
+	protected canvasSlinesCtx: CanvasRenderingContext2D;
+	protected canvasVectorCtx: CanvasRenderingContext2D;
+	protected data: DataPicture[] = [];
+	protected sLines: SLine[] = [];
+	protected imData: ImageData | null = null;
 
 	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: TileEl }) {
 		this.coords = coords;
@@ -250,7 +250,7 @@ export class WxTile {
 		this.canvasVectorCtx = this.canvasFillCtx;
 	}
 
-	draw() {
+	draw(): void {
 		if (!this.data.length) {
 			this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
 			this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
@@ -263,12 +263,12 @@ export class WxTile {
 		this._drawStaticSlines();
 	} // draw
 
-	clearSLinesCanvas() {
+	clearSLinesCanvas(): void {
 		this.canvasSlinesCtx.clearRect(0, 0, 256, 256);
 		// this.canvasSlines.getContext('2d').clearRect(0, 0, 256, 256);
 	} // clearSLinesCanvas
 
-	drawSLines(timeStemp: number) {
+	drawSLines(timeStemp: number): void {
 		// 'timeStemp' is a time tick given by the browser's scheduller
 		if (this.sLines.length === 0) return;
 
@@ -306,15 +306,15 @@ export class WxTile {
 	}
 
 	// x, y - pixel on tile
-	getData({ x, y }) {
+	getData({ x, y }: { x: number; y: number }): { raw: number; data: number } | undefined {
 		if (!this.data.length) return;
 		const raw = this.data[0].raw[(y + 1) * 258 + (x + 1)];
 		return { raw, data: this.data[0].dmin + this.data[0].dmul * raw };
 	} // getData
 
-	async load() {
+	async load(): Promise<WxTile> {
 		const { coords, layer } = this;
-		const boundaries = layer.state?.meta?.boundaries;
+		const { boundaries } = layer.state.meta;
 		if (boundaries?.boundaries180) {
 			const bbox = makeBobx(coords);
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
@@ -367,7 +367,7 @@ export class WxTile {
 		return this.layer.dataSource.variables.map((v: string) => u.replace('{var}', v));
 	} // _coordsToURLs
 
-	protected _vectorPrepare() {
+	protected _vectorPrepare(): void {
 		if (this.data.length !== 2) throw 'this.data !== 2';
 		// fill data[0] with precalculated vectors' lengths.
 		this.data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
@@ -385,7 +385,7 @@ export class WxTile {
 		}
 	} // _vectorPrepare
 
-	protected _drawFillAndIsolines() {
+	protected _drawFillAndIsolines(): void {
 		const { imData } = this;
 		if (!imData) throw '_drawFillAndIsolines: !imData';
 
@@ -476,7 +476,7 @@ export class WxTile {
 		} // if info.length
 	} // drawIsolines
 
-	protected _drawStaticSlines() {
+	protected _drawStaticSlines(): void {
 		// 'timeStemp' is a time tick given by the browser's scheduller
 		if (!this.sLines.length || !this.layer.style.streamLineStatic) return;
 		const { canvasSlinesCtx } = this;
@@ -500,7 +500,7 @@ export class WxTile {
 		canvasSlinesCtx.stroke();
 	}
 
-	protected _drawVector() {
+	protected _drawVector(): void {
 		if (!this.layer.vector || !this.layer.clut.DataToKnots) return;
 		if (!this.layer.style.vectorColor || this.layer.style.vectorColor === 'none') return;
 		if (!this.layer.style.vectorType || this.layer.style.vectorType === 'none') return;
@@ -559,7 +559,7 @@ export class WxTile {
 		} // for y
 	} // _drawVector
 
-	protected _drawDegree() {
+	protected _drawDegree(): void {
 		if (this.layer.state.units !== 'degree') return;
 
 		const { canvasVectorCtx } = this;
@@ -602,7 +602,7 @@ export class WxTile {
 		} // for y
 	} // _drawDegree
 
-	protected _createSLines() {
+	protected _createSLines(): void {
 		if (this.data.length !== 3) throw 'this.data.length !== 3';
 		if (!this.layer.style.streamLineColor || this.layer.style.streamLineColor === 'none') return;
 		const factor = this.layer.style.streamLineSpeedFactor || 1;

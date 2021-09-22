@@ -85,11 +85,11 @@ export class WxTilesLayer extends L.GridLayer {
 	wxtiles: Map<string, WxTile> = new Map();
 	styles: ColorStylesStrict = WxGetColorStyles();
 	dataSource: DataSource;
-	style: ColorStyleStrict = this.styles['base'];
+	style: ColorStyleStrict = Object.assign({}, this.styles['base']);
 	loadData: AbortableCacheableFunc = loadDataPictureCachedAbortable();
 	error: string | null = 'uninitialized';
 	vector: boolean = false;
-	clut: RawCLUT = new RawCLUT(this.style, '', [0, 1], false);
+	clut: RawCLUT = new RawCLUT(this.style, '', [0, 2], false);
 
 	state: WxLayerState;
 
@@ -195,7 +195,7 @@ export class WxTilesLayer extends L.GridLayer {
 		const { x, y } = this._map.project(latlng, zoom);
 		const coords = { x: ~~(x / 256), y: ~~(y / 256) };
 		const wxtile = this.wxtiles.get(`${coords.x}:${coords.y}:${zoom}`);
-		if (!wxtile || !wxtile.data) return; // tile is being created and not ready yet
+		if (!wxtile) return; // tile is being created and not ready yet
 		const tilePoint = { x: ~~(x - coords.x * 256), y: ~~(y - coords.y * 256) };
 
 		const tileData = wxtile.getData(tilePoint);
@@ -227,10 +227,11 @@ export class WxTilesLayer extends L.GridLayer {
 				this.dataSource.styleName += '[0]';
 			}
 		} else {
-			this.dataSource.styleName = this.dataSource.name + '[0]';
+			WXLOG(`cant find the style (${this.dataSource.styleName})`);
+			this.dataSource.styleName += '[0]';
 			if (!(this.dataSource.styleName in this.styles)) {
+				WXLOG(`cant find the style (${this.dataSource.styleName}), default is used`);
 				this.dataSource.styleName = 'base';
-				if (window.wxlogging) console.log(`cant find the style (${name}), default is used`);
 			}
 		}
 
@@ -284,12 +285,10 @@ export class WxTilesLayer extends L.GridLayer {
 	}
 
 	// unixTime - ms since 00:00:00 UTC on 1 January 1970
-	setTime(unixTime: number) {
-		if (!this.dataSource) {
-			if (window.wxlogging) {
-				console.log('setTime: failed. Lazy setup not finished yet.');
-			}
-			return;
+	setTime(unixTime: number): Promise<WxTile[]> {
+		if (this.error) {
+			WXLOG('setTime: failed. Lazy setup not finished yet.');
+			return Promise.resolve([]);
 		}
 		// NOTE: when tiles are still loading data, and a user sets a new time-stamp... a new timestemp could be
 		// loaded before old timestemp (hello network lags) then new data will be substituted with old data
@@ -302,7 +301,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 			this.fire('settime', { layer: this, layerTime });
 
-			if (window.wxlogging) console.log('setTime: ' + layerTime + ' for ' + this.dataSource.name + ' complete.');
+			WXLOG('setTime: ' + layerTime + ' for ' + this.dataSource.name + ' complete.');
 
 			const reloadPromice = this._reloadTiles();
 
@@ -322,7 +321,8 @@ export class WxTilesLayer extends L.GridLayer {
 
 			return reloadPromice;
 		}
-		return Promise.resolve();
+
+		return Promise.resolve([]);
 	} // setTime
 
 	// string
@@ -440,12 +440,13 @@ export class WxTilesLayer extends L.GridLayer {
 		this.state.minmax = this.dataSource.variables.map((v) => [this.state.meta.variablesMeta[v].min, this.state.meta.variablesMeta[v].max]);
 		this._updateMinMax();
 
+		this.error = null;
+
 		if (dataSource) {
 			this.setTime(Date.now());
 			this.setStyle(undefined);
 		}
 
-		this.error = null;
 		return true;
 	} // _setUpDataSet
 

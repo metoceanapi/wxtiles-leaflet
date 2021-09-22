@@ -1,6 +1,7 @@
 'use strict';
 
-const { WxTilesLogging, WxTilesLibSetup, WxTilesWatermark, CreateWxTilesLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
+const { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles } = window.wxtilesjs;
+const { CreateWxTilesWatermark, CreateWxTilesLayer, CreateWxDebugCoordsLayer } = window.wxtilesjs;
 const L = window.L;
 
 let map;
@@ -365,7 +366,7 @@ function createControl(opt) {
 async function start() {
 	// read config
 	try {
-		config = await fetchJson('styles/config.json'); // set the correct URI
+		config = await fetchJson('props/config.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
@@ -375,13 +376,13 @@ async function start() {
 
 	// Setup WxTiles lib
 	WxTilesLogging(true); // use wxtiles logging -> console.log
-	WxTilesWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
+	CreateWxTilesWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
 	layerControl = L.control.layers(null, null, { position: 'topright', autoZIndex: false, collapsed: false }).addTo(map);
 	config.baseLayers.map((baseLayer) => {
 		const layer = L.tileLayer(baseLayer.URL, baseLayer.options);
 		baseLayer.options.zIndex === 0 ? layerControl.addBaseLayer(layer, baseLayer.name) : layerControl.addOverlay(layer, baseLayer.name);
 	});
-	layerControl.addOverlay(WxDebugCoordsLayer(), 'tile boundaries');
+	layerControl.addOverlay(CreateWxDebugCoordsLayer(), 'tile boundaries');
 	layerControl.addBaseLayer(L.tileLayer('').addTo(map), 'base-empty');
 
 	createControl({ position: 'topleft', htmlID: 'legend' }).addTo(map);
@@ -392,17 +393,17 @@ async function start() {
 	const wxlibCustomSettings = {};
 	try {
 		// these URIs are for the demo purpose. set the correct URI
-		wxlibCustomSettings.colorStyles = await fetchJson('styles/styles.json'); // set the correct URI
+		wxlibCustomSettings.colorStyles = await fetchJson('props/styles.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
 	try {
-		wxlibCustomSettings.units = await fetchJson('styles/uconv.json'); // set the correct URI
+		wxlibCustomSettings.units = await fetchJson('props/uconv.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
 	try {
-		wxlibCustomSettings.colorSchemes = await fetchJson('styles/colorschemes.json'); // set the correct URI
+		wxlibCustomSettings.colorSchemes = await fetchJson('props/colorschemes.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
@@ -414,11 +415,13 @@ async function start() {
 	// WxDebugCoordsLayer().addTo(map);
 
 	styles = WxGetColorStyles(); // all available styles. Not every style is sutable for this layer.
-	{
-		const sorted = JSONsort(styles);
-		const str = JSON.stringify(sorted);
-		console.dir(str);
-	}
+
+	// {
+	// 	const sorted = JSONsort(styles);
+	// 	const str = JSON.stringify(sorted);
+	// 	console.dir(str);
+	// }
+
 	fillDataSets();
 
 	map.on('zoom', stopPlay); // stop time animation on zoom
