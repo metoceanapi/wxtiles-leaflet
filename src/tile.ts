@@ -2,6 +2,7 @@ import { blurData, RGBtoHEX, HEXtoRGBA, createEl } from './wxtools';
 import { DataPicture, DataPictureIntegral, ColorStyleStrict } from './wxtools';
 import { RawCLUT } from './RawCLUT';
 import { coordToPixel, PixelsToLonLat } from './mercator';
+import { BoundaryMeta, DataSource, WxTilesLayer } from './tilesLayer';
 
 interface Coords {
 	z: number;
@@ -171,12 +172,12 @@ function subData(data: DataPicture, subCoords?: Coords): DataPicture {
 	return subData;
 }
 
-interface TileEl extends HTMLElement {
+export interface TileEl extends HTMLElement {
 	wxtile?: WxTile;
 }
 
 export interface TileCreateParams {
-	layer: Layer;
+	layer: WxTilesLayer;
 	coords: Coords;
 	done: () => void;
 }
@@ -191,9 +192,9 @@ function makeBobx(coords: Coords): BoundaryMeta {
 export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
 	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
 
-	if (layer.dataSource) {
+	if (!layer.error) {
 		tileEl.wxtile = new WxTile({ layer, coords, tileEl });
-		tileEl.wxtile._load().then((wxtile) => {
+		tileEl.wxtile.load().then((wxtile) => {
 			wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
 			done(); // done is used after create (to appear on map), not after reload (it is on the map already).
 		});
@@ -208,53 +209,6 @@ export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
 
 type LoadDataFunc = (URL: string) => Promise<DataPicture>;
 
-export interface VariableMeta {
-	[name: string]: {
-		units: string;
-		min: number;
-		max: number;
-	};
-}
-
-export interface BoundaryMeta {
-	west: number;
-	north: number;
-	east: number;
-	south: number;
-}
-export interface AllBoundariesMeta {
-	boundariesnorm: BoundaryMeta;
-	boundaries180: BoundaryMeta[];
-	boundaries360: BoundaryMeta[];
-}
-
-export interface Meta {
-	variables: string[];
-	variablesMeta: VariableMeta;
-	maxZoom: number;
-	times: string[];
-	boundaries?: AllBoundariesMeta;
-}
-export interface DataSource {
-	serverURI: string; // server to fetch data from
-	ext: string; // png / webp (default) - wxtilesplitter output format
-	dataset: string; // dataset of the dataset
-	variables: string[]; // variable(s) to be used for the layer rendering
-	name: string; // attribute of the dataSource to be used externally
-	styleName: string; // The name of the style (from styles.json) to apply for the layer
-	units: string;
-	meta: Meta;
-	baseURL: string;
-}
-
-interface Layer {
-	style: ColorStyleStrict;
-	loadData: LoadDataFunc;
-	dataSource: DataSource;
-	vector: boolean;
-	clut: RawCLUT;
-}
-
 interface SLinePoint {
 	x: number;
 	y: number;
@@ -263,7 +217,7 @@ interface SLinePoint {
 type SLine = SLinePoint[];
 
 export class WxTile {
-	layer: Layer;
+	layer: WxTilesLayer;
 	coords: Coords;
 	canvasFill: HTMLCanvasElement;
 	canvasSlines: HTMLCanvasElement;
@@ -275,7 +229,7 @@ export class WxTile {
 	sLines: SLine[] = [];
 	imData: ImageData | null = null;
 
-	constructor({ layer, coords, tileEl }: { layer: Layer; coords: Coords; tileEl: TileEl }) {
+	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: TileEl }) {
 		this.coords = coords;
 		this.layer = layer;
 
@@ -358,9 +312,9 @@ export class WxTile {
 		return { raw, data: this.data[0].dmin + this.data[0].dmul * raw };
 	} // getData
 
-	async _load() {
+	async load() {
 		const { coords, layer } = this;
-		const { boundaries } = layer.dataSource.meta;
+		const boundaries = layer.state?.meta?.boundaries;
 		if (boundaries?.boundaries180) {
 			const bbox = makeBobx(coords);
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
@@ -375,19 +329,19 @@ export class WxTile {
 
 		const URLs = this._coordsToURLs(upCoords);
 
-		let data: DataPicture[] = [];
+		// let data: DataPicture[] = [];
 		try {
-			data = await Promise.all(URLs.map(layer.loadData));
+			this.data = await Promise.all(URLs.map(layer.loadData));
 		} catch (e) {
 			this.data = [];
 			this.imData = null;
 			return this;
 		}
 
-		const interpolator = layer.dataSource.units === 'degree' ? subDataDegree : subData;
+		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
 		// combine 'subCoords' and 'blurRadius' in 'processor'
 		const processor = (d: DataPicture) => interpolator(blurData(<DataPictureIntegral>d, this.layer.style.blurRadius), subCoords);
-		this.data = data.map(processor); // preprocess all loaded data
+		this.data = this.data.map(processor); // preprocess all loaded data
 		this.imData = this.canvasFillCtx.createImageData(256, 256);
 
 		if (this.layer.vector) {
@@ -398,22 +352,22 @@ export class WxTile {
 		return this;
 	} // _load
 
-	_splitCoords(coords: Coords): { upCoords: Coords; subCoords?: Coords } {
-		const zDif = coords.z - this.layer.dataSource.meta.maxZoom;
+	protected _splitCoords(coords: Coords): { upCoords: Coords; subCoords?: Coords } {
+		const zDif = coords.z - this.layer.state.meta.maxZoom;
 		if (zDif <= 0) {
 			return { upCoords: coords };
 		}
-		const upCoords = { x: coords.x >>> zDif, y: coords.y >>> zDif, z: this.layer.dataSource.meta.maxZoom };
+		const upCoords = { x: coords.x >>> zDif, y: coords.y >>> zDif, z: this.layer.state.meta.maxZoom };
 		const subCoords = { x: coords.x & ((1 << zDif) - 1), y: coords.y & ((1 << zDif) - 1), z: zDif };
 		return { upCoords, subCoords };
 	} // _splitCoords
 
-	_coordsToURLs(upCoords: Coords): string[] {
-		const u = this.layer.dataSource.baseURL.replace('{z}', String(upCoords.z)).replace('{x}', String(upCoords.x)).replace('{y}', String(upCoords.y));
+	protected _coordsToURLs(upCoords: Coords): string[] {
+		const u = this.layer.state.baseURL.replace('{z}', String(upCoords.z)).replace('{x}', String(upCoords.x)).replace('{y}', String(upCoords.y));
 		return this.layer.dataSource.variables.map((v: string) => u.replace('{var}', v));
 	} // _coordsToURLs
 
-	_vectorPrepare() {
+	protected _vectorPrepare() {
 		if (this.data.length !== 2) throw 'this.data !== 2';
 		// fill data[0] with precalculated vectors' lengths.
 		this.data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
@@ -431,7 +385,7 @@ export class WxTile {
 		}
 	} // _vectorPrepare
 
-	_drawFillAndIsolines() {
+	protected _drawFillAndIsolines() {
 		const { imData } = this;
 		if (!imData) throw '_drawFillAndIsolines: !imData';
 
@@ -522,7 +476,7 @@ export class WxTile {
 		} // if info.length
 	} // drawIsolines
 
-	_drawStaticSlines() {
+	protected _drawStaticSlines() {
 		// 'timeStemp' is a time tick given by the browser's scheduller
 		if (!this.sLines.length || !this.layer.style.streamLineStatic) return;
 		const { canvasSlinesCtx } = this;
@@ -546,7 +500,7 @@ export class WxTile {
 		canvasSlinesCtx.stroke();
 	}
 
-	_drawVector() {
+	protected _drawVector() {
 		if (!this.layer.vector || !this.layer.clut.DataToKnots) return;
 		if (!this.layer.style.vectorColor || this.layer.style.vectorColor === 'none') return;
 		if (!this.layer.style.vectorType || this.layer.style.vectorType === 'none') return;
@@ -605,8 +559,8 @@ export class WxTile {
 		} // for y
 	} // _drawVector
 
-	_drawDegree() {
-		if (this.layer.dataSource.units !== 'degree') return;
+	protected _drawDegree() {
+		if (this.layer.state.units !== 'degree') return;
 
 		const { canvasVectorCtx } = this;
 
@@ -648,7 +602,7 @@ export class WxTile {
 		} // for y
 	} // _drawDegree
 
-	_createSLines() {
+	protected _createSLines() {
 		if (this.data.length !== 3) throw 'this.data.length !== 3';
 		if (!this.layer.style.streamLineColor || this.layer.style.streamLineColor === 'none') return;
 		const factor = this.layer.style.streamLineSpeedFactor || 1;
@@ -660,7 +614,7 @@ export class WxTile {
 		// does 20 moc steps and stores the point into streamline (sLine).
 		// Algo does two passes: forward and backward, to cope boundaries and improve visual effect.
 		const [l, u, v] = this.data;
-		const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
+		const zdif = Math.max(this.coords.z - this.layer.state.meta.maxZoom, 0);
 		const gridStep = Math.min(2 ** (zdif + 5), 128);
 		const steps = ~~(120 + zdif * 60);
 		for (let y = 0; y <= 256; y += gridStep) {

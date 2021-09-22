@@ -199,7 +199,7 @@ async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEle
 	await img.decode();
 	signal.removeEventListener('abort', abortFunc);
 	return img;
-	
+
 	//// Method 2
 	// return new Promise((resolve) => {
 	// 	img.onload = () => {signal.removeEventListener('abort', abortFunc);resolve(img);};
@@ -412,4 +412,15 @@ export function createLevels(min: number, max: number, n: number): number[] {
 		levels.push((i * (max - min)) / (n - 1) + min);
 	}
 	return levels;
+}
+
+export function WXLOG(...str: any) {
+	if (window.wxlogging) {
+		console.log(...str);
+	}
+}
+
+export function getClosestTimeString(times: string[], unixTime: number) {
+	// Take the next times[]'s after unixTime OR the last
+	return times.find((stime) => new Date(stime).getTime() >= unixTime) || times[times.length - 1];
 }

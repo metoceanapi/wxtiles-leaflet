@@ -1,6 +1,6 @@
 'use strict';
 
-const { WxTilesLogging, WxTilesLibSetup, WxTilesWatermark, WxTilesLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
+const { WxTilesLogging, WxTilesLibSetup, WxTilesWatermark, CreateWxTilesLayer, WxGetColorStyles, WxDebugCoordsLayer } = window.wxtilesjs;
 const L = window.L;
 
 let map;
@@ -96,7 +96,7 @@ async function loadVariable_selectVariableEl_onchange() {
 
 	// save in order to delete old layer
 	const oldLayer = layer; // this is to store oldLayer in order a user change layers too fast.
-	layer = WxTilesLayer(layerSettings);
+	layer = CreateWxTilesLayer(layerSettings);
 	await layer.getSetupCompletePromise(); // 'complete' doesn't mean 'loaded' !!!
 	layer.addTo(map);
 	layerControl.addOverlay(layer, layerSettings.dataSource.name);
@@ -336,11 +336,11 @@ function popupInfo(e) {
 			content += tile
 				? `<div>
 					<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-					${tile.tile.layer.dataSource.name}<br>
+					${layer.dataSource.name}<br>
 					(in style Units = ${tile.inStyleUnits} ${tile.units})<br>
-					(in data Units = ${tile.data} ${layer.dataSource.units})<br>
+					(in data Units = ${tile.data} ${layer.state.units})<br>
 					(time:${time})<br>
-					(instance:${layer.dataSource.instance})<br>
+					(instance:${layer.state.instance})<br>
 					(tileCoords:${tile.tile.coords.x},${tile.tile.coords.y},zoom:${tile.tile.coords.z})<br>
 					(tilePoint:${tile.tilePoint.x},${tile.tilePoint.y})<br>
 				</div>`
