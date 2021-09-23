@@ -7,7 +7,7 @@ import L from 'leaflet';
 import { WXLOG } from './wxtools';
 import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
-export { WxTilesLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
+export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
 export { WxTilesLayer, WxTilesLayerSettings, DataSource } from './tilesLayer';
 
 export function CreateWxTilesLayer(settings: WxTilesLayerSettings): WxTilesLayer {
@@ -31,10 +31,7 @@ export class WxWatermark extends L.Control {
 }
 
 export function CreateWxTilesWatermark(options: any): WxWatermark {
-	if (window.wxlogging) {
-		console.log('Add watermark:', JSON.stringify(options));
-	}
-
+	WXLOG('Add watermark:', JSON.stringify(options));
 	return new WxWatermark(options);
 }
 
@@ -54,13 +51,4 @@ export function CreateWxDebugCoordsLayer(): WxDebugLayer {
 
 export function CreateWxTilesGroupLayer(group: WxTilesLayerSettings[], options?: L.LayerOptions): L.LayerGroup<any> {
 	return L.layerGroup(group.map(CreateWxTilesLayer), options);
-}
-
-export function WxTilesLogging(on: boolean) {
-	if (on) {
-		console.log('Logging on');
-	} else {
-		console.log('Logging off');
-	}
-	window.wxlogging = on;
 }

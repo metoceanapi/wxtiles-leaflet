@@ -77,30 +77,33 @@ export interface WxTilesLayerSettings {
 	options: L.GridLayerOptions; // leaflet's options for the layer
 }
 
+const incompleteSetup = 'setup not complete';
+
 export class WxTilesLayer extends L.GridLayer {
 	setupCompletePromise: Promise<boolean> | undefined;
 
 	// tiles will be stored here. There is a protected 'Leaflet's GridLayer._tiles'
 	// but at some point I decided to move to my own Map.
-	wxtiles: Map<string, WxTile> = new Map();
-	styles: ColorStylesStrict = WxGetColorStyles();
+	protected wxtiles: Map<string, WxTile> = new Map();
+	protected styles: ColorStylesStrict = WxGetColorStyles();
 	dataSource: DataSource;
 	style: ColorStyleStrict = Object.assign({}, this.styles['base']);
 	loadData: AbortableCacheableFunc = loadDataPictureCachedAbortable();
-	error: string | null = 'uninitialized';
+	error: string | null = incompleteSetup;
 	vector: boolean = false;
 	clut: RawCLUT = new RawCLUT(this.style, '', [0, 2], false);
 
 	state: WxLayerState;
 
+	animation: boolean = false;
+
 	protected animationRedrawID: number = 0;
-	protected animation: boolean = false;
 	protected animFrame: number = 0;
 	protected oldMaxZoom: number = 0;
 
 	constructor({ dataSource, options = {}, lazy = true }: WxTilesLayerSettings) {
 		super(options); // Object.assign(this.options, options); // equal to {leaflet}.GridLayer.prototype.initialize.call(this, options); // essential for Leaflet' options initializing from parameters
-		WXLOG('Creating a WxTile layer:' + JSON.stringify({ dataSource, options }));
+		WXLOG('Creating a WxTilex layer:' + JSON.stringify({ dataSource, options }));
 
 		// class constructor
 		if (
@@ -133,33 +136,31 @@ export class WxTilesLayer extends L.GridLayer {
 
 			this.setupCompletePromise = this._setUpDataSet(dataSource);
 
-			this.setupCompletePromise
-				.then(() => {
-					WXLOG('Setup complete:', this.dataSource.name);
+			this.setupCompletePromise.then(() => {
+				WXLOG('Setup complete:', this.dataSource.name);
 
-					const onLoad: L.TileEventHandlerFn = (t: L.TileEvent): void => {
-						this.wxtiles.set(`${t.coords.x}:${t.coords.y}:${t.coords.z}`, (t.tile as TileEl).wxtile!);
-					};
-					// to maintain tiles' Map
-					this.on('tileload', onLoad);
+				// to maintain tiles' Map
+				const onLoad: L.TileEventHandlerFn = (t) => {
+					this.wxtiles.set(`${t.coords.x}:${t.coords.y}:${t.coords.z}`, (t.tile as TileEl).wxtile!);
+				};
 
-					const onUnLoad: L.TileEventHandlerFn = (t: L.TileEvent): void => {
-						this.wxtiles.delete(`${t.coords.x}:${t.coords.y}:${t.coords.z}`);
-					};
-					this.on('tileunload', onUnLoad);
+				this.on('tileload', onLoad);
 
-					this.on('add', this._onAddL, this);
-					// this.on('remove'...) // moved to 'initialize' to avoid appearance of zombie layers due to 'lazy loading' if a user clicks on layers too fast
+				const onUnLoad: L.TileEventHandlerFn = (t) => {
+					this.wxtiles.delete(`${t.coords.x}:${t.coords.y}:${t.coords.z}`);
+				};
+				this.on('tileunload', onUnLoad);
 
-					// By the time when setup is complete, layer could be removed from _map, so, dont call _onAddl
-					// the same happens if lazy === false
-					if (this._map) {
-						this._onAddL(); // simulates addTo(map)
-					}
+				this.on('add', this._onAddLayer, this);
 
-					this.fire('setupcomplete', { layer: this });
-				})
-				.catch((err: any) => WXLOG(err));
+				// By the time when setup is complete, layer could be removed from _map, so, dont call _onAddl
+				// the same happens if lazy === false
+				if (this._map) {
+					this._onAddLayer(); // simulates addTo(map)
+				}
+
+				this.fire('setupcomplete', { layer: this });
+			});
 		};
 
 		if (lazy) {
@@ -168,13 +169,12 @@ export class WxTilesLayer extends L.GridLayer {
 			lazySetup();
 		}
 
-		this.on('remove', this._onRemoveL, this); // moved from '_initializeEvents' due to 'lazy loading'
+		this.on('remove', this._onRemoveLayer, this); // moved from '_initializeEvents' due to 'lazy loading'
 	} // constructor
 
 	// Leaflet's calling this, don't use it directly!
-	createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
-		// const done = () => {};
-		if (this.error) {
+	protected createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
+		if (this.error && this.error !== incompleteSetup) {
 			setTimeout(done); // if 'done' is not used then visual issue happens sometimes!
 			return Object.assign(createEl('div', 'error-tile'), { innerHTML: this.error });
 		}
@@ -182,7 +182,7 @@ export class WxTilesLayer extends L.GridLayer {
 		return TileCreate({ layer: this, coords, done });
 	} // createTile
 
-	getSetupCompletePromise() {
+	getSetupCompletePromise(): Promise<boolean> | undefined {
 		return this.setupCompletePromise;
 	}
 
@@ -207,7 +207,12 @@ export class WxTilesLayer extends L.GridLayer {
 		return { tile: wxtile, data, raw, rgba, hexColor, inStyleUnits, tilePoint, units: this.style.units };
 	} // getTile
 
-	setStyle(name: string | undefined) {
+	setStyle(name: string | undefined): void {
+		if (this.error) {
+			WXLOG('setStyle: failed: ' + this.error);
+			return;
+		}
+
 		if (this.dataSource.styleName === name && name !== 'custom') return; // nothing to setup
 
 		if (name) this.dataSource.styleName = name; // if name === undefined, use internal name for the first setup
@@ -247,8 +252,8 @@ export class WxTilesLayer extends L.GridLayer {
 			const minmax = this.state.minmax[0];
 			this.clut = new RawCLUT(this.style, this.state.units, minmax, this.vector);
 		} catch (c) {
-			const error = 'setStyle: impossible error in RawCLUT';
-			WXLOG(error, c);
+			const error = 'setStyle: impossible error in RawCLUT: ' + c;
+			WXLOG(error);
 			throw error;
 		}
 
@@ -257,39 +262,28 @@ export class WxTilesLayer extends L.GridLayer {
 			this._reloadTiles();
 		}
 
-		if (window.wxlogging) console.log('setStyle: "' + this.dataSource.styleName + '" for ' + this.dataSource.name + ' complete.');
+		WXLOG('setStyle: "' + this.dataSource.styleName + '" for ' + this.dataSource.name + ' complete.');
 
 		this.fire('setstyle', { layer: this });
 	} // setStyle
 
 	// string
-	getStyle() {
-		if (!this.dataSource) {
-			if (window.wxlogging) {
-				console.log('getStyle: failed. Lazy setup not finished yet.');
-			}
-			return;
-		}
-		return (this.dataSource && this.dataSource.styleName) || '';
+	getStyle(): string {
+		return this.dataSource.styleName;
 	}
 
 	// string
-	getStyleName() {
-		if (!this.dataSource) {
-			if (window.wxlogging) {
-				console.log('getStyleName: failed. Lazy setup not finished yet.');
-			}
-			return;
-		}
-		return (this.dataSource && this.style && this.style.name) || 'no style';
+	getStyleName(): string {
+		return this.style.name;
 	}
 
 	// unixTime - ms since 00:00:00 UTC on 1 January 1970
 	setTime(unixTime: number): Promise<WxTile[]> {
 		if (this.error) {
-			WXLOG('setTime: failed. Lazy setup not finished yet.');
+			WXLOG('setTime: failed: ' + this.error);
 			return Promise.resolve([]);
 		}
+
 		// NOTE: when tiles are still loading data, and a user sets a new time-stamp... a new timestemp could be
 		// loaded before old timestemp (hello network lags) then new data will be substituted with old data
 		// and some visual issues can come. Have no idea how to prevent this.
@@ -326,19 +320,19 @@ export class WxTilesLayer extends L.GridLayer {
 	} // setTime
 
 	// string
-	getTime() {
+	getTime(): string {
 		if (this.error) {
-			WXLOG('getTime: failed. Lazy setup not finished yet.');
-			return;
+			WXLOG('getTime: failed: ' + this.error);
+			return this.error;
 		}
 		return this.state.time;
 	}
 
 	// Arra of strings (times)
-	getTimes() {
+	getTimes(): string[] {
 		if (this.error) {
-			WXLOG('getTimes: failed. Lazy setup not finished yet.');
-			return;
+			WXLOG('getTimes: failed: ' + this.error);
+			return [];
 		}
 		return this.state.meta.times;
 	}
@@ -346,7 +340,7 @@ export class WxTilesLayer extends L.GridLayer {
 	// check if data has been changed since last init
 	async checkDataChanged(): Promise<boolean> {
 		if (this.error) {
-			WXLOG('getTimes: failed. Lazy setup not finished yet or other error: ', this.error);
+			WXLOG('checkDataChanged: failed: ' + this.error);
 			return false;
 		}
 
@@ -376,9 +370,7 @@ export class WxTilesLayer extends L.GridLayer {
 	getLegendData(legendSize: number) {
 		if (this.error) return;
 		if (!this.clut) {
-			if (window.wxlogging) {
-				console.log('getLegendData: failed. Lazy setup not finished yet:' + this.dataSource.name);
-			}
+			WXLOG('getLegendData: failed. Lazy setup not finished yet:' + this.dataSource.name);
 			return;
 		}
 
@@ -403,6 +395,15 @@ export class WxTilesLayer extends L.GridLayer {
 	getMinMax() {
 		const [min, max] = this.state.minmax[0];
 		return { min, max };
+	}
+
+	setAnimation(a: boolean | undefined): boolean {
+		if (a) {
+			this.animation = a;
+			this._checkAndStartSlinesAnimation();
+		}
+
+		return this.animation;
 	}
 
 	protected async _setUpDataSet(dataSource: DataSource | undefined): Promise<boolean> {
@@ -466,7 +467,7 @@ export class WxTilesLayer extends L.GridLayer {
 	}
 
 	// onAdd is used in the leaflet library! so I renamed it.
-	protected _onAddL() {
+	protected _onAddLayer() {
 		WXLOG('onadd:', this.dataSource.name);
 
 		this._map?.on('zoomstart', this._checkZoom, this); // fired when tiles are about to start loading... when zoom or shift
@@ -477,7 +478,7 @@ export class WxTilesLayer extends L.GridLayer {
 		});
 	}
 
-	protected _onRemoveL() {
+	protected _onRemoveLayer() {
 		WXLOG('onremove:', this.dataSource.name);
 
 		this._map?.off('zoomstart', this._checkZoom, this);
@@ -499,11 +500,10 @@ export class WxTilesLayer extends L.GridLayer {
 
 		const drawSLines: FrameRequestCallback = (timeStemp: number) => {
 			if (!this.animation || this.style.streamLineStatic) {
-				// if during animation a user stops it
 				this._stopSlinesAnimation();
 				return;
 			}
-			this.wxtiles.forEach((wxtile: WxTile) => wxtile.drawSLines(timeStemp));
+			this.wxtiles.forEach((wxtile) => wxtile.drawSLines(timeStemp));
 			this.animFrame = requestAnimationFrame(drawSLines);
 		};
 
@@ -512,7 +512,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 	protected _stopSlinesAnimation() {
 		cancelAnimationFrame(this.animFrame);
-		this.wxtiles.forEach((wxtile) => wxtile.clearSLinesCanvas());
+		// this.wxtiles.forEach((wxtile) => wxtile.clearSLinesCanvas());
 		this.animFrame = 0;
 	}
 
@@ -526,9 +526,9 @@ export class WxTilesLayer extends L.GridLayer {
 
 	protected _reloadTiles(): Promise<WxTile[]> {
 		// const promises: Promise<WxTile>[] = [];
-		// this.wxtiles.forEach((wxtile: WxTile) => promises.push(wxtile.load()));
+		// this.wxtiles.forEach((wxtile) => promises.push(wxtile.load()));
 
-		const promises = Array.from(this.wxtiles.values()).map((wxtile: WxTile) => wxtile.load());
+		const promises = Array.from(this.wxtiles.values()).map((wxtile) => wxtile.load());
 
 		const reloadedPromice = Promise.all(promises);
 		reloadedPromice.then(() => this._redrawTiles());

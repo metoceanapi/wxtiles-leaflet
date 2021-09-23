@@ -182,7 +182,7 @@ export interface TileCreateParams {
 	done: () => void;
 }
 
-function makeBobx(coords: Coords): BoundaryMeta {
+function makeBox(coords: Coords): BoundaryMeta {
 	const [px, py] = coordToPixel(coords.x, coords.y);
 	const [west, north] = PixelsToLonLat(px, py, coords.z);
 	const [east, south] = PixelsToLonLat(px + 256, py + 256, coords.z);
@@ -206,8 +206,6 @@ export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
 
 	return tileEl;
 }
-
-type LoadDataFunc = (URL: string) => Promise<DataPicture>;
 
 interface SLinePoint {
 	x: number;
@@ -316,7 +314,7 @@ export class WxTile {
 		const { coords, layer } = this;
 		const { boundaries } = layer.state.meta;
 		if (boundaries?.boundaries180) {
-			const bbox = makeBobx(coords);
+			const bbox = makeBox(coords);
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
 			if (!boundaries.boundaries180.some(rectIntersect)) {
 				this.data = [];

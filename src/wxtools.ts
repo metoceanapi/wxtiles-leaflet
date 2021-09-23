@@ -1,10 +1,3 @@
-declare global {
-	interface Window {
-		wxlogging: boolean;
-		L: any; // reference to the external Leaflet library
-	}
-}
-
 import { __units_default_preset } from './defaults/uconv';
 import { __colorSchemes_default_preset } from './defaults/colorschemes';
 import { __colorStyles_default_preset } from './defaults/styles';
@@ -120,15 +113,13 @@ export interface Converter {
 export function makeConverter(from: string, to: string, customUnits?: Units): Converter {
 	const localUnitsCopy = customUnits ? Object.assign({}, _units, customUnits) : _units;
 	if (!localUnitsCopy || !from || !to || from === to || !localUnitsCopy[from] || !localUnitsCopy[to] || localUnitsCopy[from][0] !== localUnitsCopy[to][0]) {
-		if (window.wxlogging) {
-			console.log(from === to ? 'Trivial converter:' : 'Inconvertible units. Default converter is used:', from, ' -> ', to);
-		}
+		WXLOG(from === to ? 'Trivial converter:' : 'Inconvertible units. Default converter is used:', from, ' -> ', to);
 		const c = (x: number) => x;
 		c.trivial = true;
 		return c; // Inconvertible or trivial
 	}
 
-	if (window.wxlogging) console.log('Converter: From:', from, ' To:', to);
+	WXLOG('Converter: From:', from, ' To:', to);
 	const a = localUnitsCopy[from][1] / localUnitsCopy[to][1];
 	const b = (localUnitsCopy[from][2] || 0) / localUnitsCopy[to][1] - (localUnitsCopy[to][2] || 0) / localUnitsCopy[to][1];
 	return b ? (x: number) => a * x + b : (x: number) => a * x;
@@ -363,9 +354,8 @@ export function HEXtoRGBA(c: string): number {
 		if (c.length === 9) return +('0x' + c[7] + c[8] + c[5] + c[6] + c[3] + c[4] + c[1] + c[2]);
 	}
 
-	if (window.wxlogging) {
-		console.log('wrong color format', c);
-	}
+	WXLOG('wrong color format', c);
+
 	return 0;
 }
 
@@ -408,13 +398,25 @@ export function createLevels(min: number, max: number, n: number): number[] {
 	return levels;
 }
 
-export function WXLOG(...str: any) {
-	if (window.wxlogging) {
-		console.log(...str);
-	}
-}
-
 export function getClosestTimeString(times: string[], unixTime: number) {
 	// Take the next times[]'s after unixTime OR the last
 	return times.find((stime) => new Date(stime).getTime() >= unixTime) || times[times.length - 1];
+}
+
+var wxlogging: boolean = false;
+
+export function WxTilesLogging(on: boolean) {
+	if (on) {
+		console.log('Logging on');
+	} else {
+		console.log('Logging off');
+	}
+	
+	wxlogging = on;
+}
+
+export function WXLOG(...str: any) {
+	if (wxlogging) {
+		console.log(...str);
+	}
 }
