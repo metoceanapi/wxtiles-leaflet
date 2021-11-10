@@ -173,28 +173,29 @@ function cacheIt(fn: CacheableFunc): CacheableFunc {
 }
 
 // abortable 'loadImage'
-function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
+async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
 	const img = new Image();
 	img.crossOrigin = 'anonymous'; // essential
-	const abortFunc = () => {
-		img.src = '';
-	}; // stop loading
-
+	const abortFunc = () => (img.src = ''); // stop loading
 	signal.addEventListener('abort', abortFunc);
-	////// Method 1
-	// img.src = url;
-	// await img.decode();
-	// signal.removeEventListener('abort', abortFunc);
-	// return img;
+	//// Method 1
+	img.src = url;
+	await img.decode();
+	signal.removeEventListener('abort', abortFunc);
+	return img;
 
 	//// Method 2
-	return new Promise((resolve) => {
-		img.onload = () => {
-			signal.removeEventListener('abort', abortFunc);
-			resolve(img);
-		};
-		img.src = url; // should be after .onload
-	});
+	// return new Promise((resolve, reject) => {
+	// 	img.onerror = (e) => {
+	// 		signal.removeEventListener('abort', abortFunc);
+	// 		reject(e);
+	// 	};
+	// 	img.onload = () => {
+	// 		signal.removeEventListener('abort', abortFunc);
+	// 		resolve(img);
+	// 	};
+	// 	img.src = url; // should be after .onload
+	// });
 }
 
 interface IntegralPare {
