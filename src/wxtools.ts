@@ -210,7 +210,7 @@ export interface DataPicture {
 	dmul: number;
 }
 
-export interface DataPictureIntegral extends DataPicture {
+export interface DataIntegral extends DataPicture {
 	integral: IntegralPare;
 	radius: number;
 }
@@ -229,8 +229,8 @@ export async function loadImageData(url: string, signal: AbortSignal): Promise<I
 
 // http://webpjs.appspot.com/ = webp lossless decoder
 // https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
-async function loadDataPictureIntegral(url: string, signal: AbortSignal): Promise<DataPictureIntegral> {
-	const dataToPictureIntegral = (imData: ImageData): DataPictureIntegral => {
+async function loadDataIntegral(url: string, signal: AbortSignal): Promise<DataIntegral> {
+	const dataToIntegral = (imData: ImageData): DataIntegral => {
 		// picTile contains bytes RGBARGBARGBA ...
 		// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
 		const size = imData.height * imData.width;
@@ -258,7 +258,7 @@ async function loadDataPictureIntegral(url: string, signal: AbortSignal): Promis
 	// if (!context) return Promise.reject();
 	// context.drawImage(image, 0, 0);
 	// return pixelsToData(context.getImageData(0, 0, 258, 258));
-	return dataToPictureIntegral(await loadImageData(url, signal));
+	return dataToIntegral(await loadImageData(url, signal));
 }
 
 export interface AbortableCacheableFunc extends CacheableFunc {
@@ -268,7 +268,7 @@ export interface AbortableCacheableFunc extends CacheableFunc {
 
 export function loadDataPictureCachedAbortable() {
 	const controller = new AbortController();
-	const func = <AbortableCacheableFunc>cacheIt((url: string) => loadDataPictureIntegral(url, controller.signal));
+	const func = <AbortableCacheableFunc>cacheIt((url: string) => loadDataIntegral(url, controller.signal));
 	func.abort = () => controller.abort();
 	func.controller = controller;
 	return func;
@@ -305,7 +305,7 @@ function integralImage(raw: Uint16Array): IntegralPare {
 }
 
 // BoxBlur based on integral images, whoop whoop
-export function blurData(im: DataPictureIntegral, radius: number): DataPictureIntegral {
+export function blurData(im: DataIntegral, radius: number): DataIntegral {
 	if (radius < 0 || radius === im.radius) return im;
 	im.radius = radius;
 	const s = 258;

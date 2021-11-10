@@ -1,5 +1,5 @@
 import { blurData, RGBtoHEX, HEXtoRGBA, createEl, loadImageData } from './wxtools';
-import { DataPicture, DataPictureIntegral, ColorStyleStrict } from './wxtools';
+import { DataPicture, DataIntegral, ColorStyleStrict } from './wxtools';
 import { RawCLUT } from './RawCLUT';
 import { coordToPixel, PixelsToLonLat } from './mercator';
 import { BoundaryMeta, DataSource, WxTilesLayer } from './tilesLayer';
@@ -369,7 +369,7 @@ export class WxTile {
 
 		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
 		// combine 'subCoords' and 'blurRadius' in 'processor'
-		const processor = (d: DataPicture) => interpolator(blurData(<DataPictureIntegral>d, this.layer.style.blurRadius), subCoords);
+		const processor = (d: DataPicture) => interpolator(blurData(<DataIntegral>d, this.layer.style.blurRadius), subCoords);
 		this.data = data.map(processor); // preprocess all loaded data
 		this.imData = this.canvasFillCtx.createImageData(256, 256);
 
