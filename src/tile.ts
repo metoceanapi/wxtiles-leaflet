@@ -1,10 +1,11 @@
-import { blurData, RGBtoHEX, HEXtoRGBA, createEl } from './wxtools';
+import { blurData, RGBtoHEX, HEXtoRGBA, createEl, loadImageData } from './wxtools';
 import { DataPicture, DataPictureIntegral, ColorStyleStrict } from './wxtools';
 import { RawCLUT } from './RawCLUT';
 import { coordToPixel, PixelsToLonLat } from './mercator';
 import { BoundaryMeta, DataSource, WxTilesLayer } from './tilesLayer';
+import { QTreeCheckCoord, TileType } from './qtree';
 
-interface Coords {
+export interface Coords {
 	z: number;
 	x: number;
 	y: number;
@@ -172,6 +173,20 @@ function subData(data: DataPicture, subCoords?: Coords): DataPicture {
 	return subData;
 }
 
+function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPicture {
+	const t = maskType === 'land' ? 1 : 0;
+	for (let maskIndex = 3, y = 0; y < 256; y++) {
+		for (let x = 0; x < 256; x++, maskIndex += 4) {
+			const m = mask.data[maskIndex] ? 1 : 0; // 0 - land
+			if (t ^ m) {
+				data.raw[(y + 1) * 258 + (x + 1)] = 0;
+			}
+		}
+	}
+
+	return data;
+}
+
 export interface TileEl extends HTMLElement {
 	wxtile?: WxTile;
 }
@@ -215,8 +230,9 @@ interface SLinePoint {
 type SLine = SLinePoint[];
 
 export class WxTile {
+	coords: Coords;
+
 	protected layer: WxTilesLayer;
-	protected coords: Coords;
 	protected canvasFill: HTMLCanvasElement;
 	protected canvasSlines: HTMLCanvasElement;
 	protected canvasVector: HTMLCanvasElement;
@@ -311,15 +327,32 @@ export class WxTile {
 	} // getData
 
 	async load(): Promise<WxTile> {
+		// clean data up on load start
+		this.data = [];
+		this.imData = null;
+
 		const { coords, layer } = this;
 		const { boundaries } = layer.state.meta;
+
+		// const type = QTreeCheckCoord({ x: 0, y: 0, z: 3 });
+		// const type = QTreeCheckCoord({ x: 973, y: 766, z: 10 });
+
+		const maskType = this.layer.style.mask;
+		// should the mask be applied according to the current style?
+		var tileType: TileType | undefined;
+		if (maskType === 'land' || maskType === 'sea') {
+			tileType = QTreeCheckCoord(coords); // check 'type' of a tile
+			if (maskType === tileType) {
+				// whole this tile is cut by the mask -> nothing to load and process
+				return this;
+			}
+		}
+
 		if (boundaries?.boundaries180) {
 			const bbox = makeBox(coords);
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
 			if (!boundaries.boundaries180.some(rectIntersect)) {
-				this.data = [];
-				this.imData = null;
-				return this;
+				return this; // empty tile
 			}
 		}
 
@@ -327,20 +360,27 @@ export class WxTile {
 
 		const URLs = this._coordsToURLs(upCoords);
 
-		// let data: DataPicture[] = [];
+		let data: DataPicture[];
 		try {
-			this.data = await Promise.all(URLs.map(layer.loadData));
+			data = await Promise.all(URLs.map(layer.loadData));
 		} catch (e) {
-			this.data = [];
-			this.imData = null;
-			return this;
+			return this; // empty tile
 		}
 
 		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
 		// combine 'subCoords' and 'blurRadius' in 'processor'
 		const processor = (d: DataPicture) => interpolator(blurData(<DataPictureIntegral>d, this.layer.style.blurRadius), subCoords);
-		this.data = this.data.map(processor); // preprocess all loaded data
+		this.data = data.map(processor); // preprocess all loaded data
 		this.imData = this.canvasFillCtx.createImageData(256, 256);
+
+		if (maskType && tileType === TileType.Mixed) {
+			// const url = 'http://localhost:8080/' + coords.z + '/' + coords.x + '/' + coords.y;
+			const url = layer.state.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
+			try {
+				const mask = await loadImageData(url, layer.loadData.controller.signal);
+				applyMask(this.data[0], mask, maskType);
+			} catch (e) {}
+		}
 
 		if (this.layer.vector) {
 			this._vectorPrepare();
@@ -617,7 +657,7 @@ export class WxTile {
 		const steps = ~~(120 + zdif * 60);
 		for (let y = 0; y <= 256; y += gridStep) {
 			for (let x = 0; x <= 256; x += gridStep) {
-				if (!l.raw[x + y * 258]) continue; // NODATA
+				if (!l.raw[1 + x + (1 + y) * 258]) continue; // NODATA
 				const sLine: SLine = []; // streamline
 				let xf = x;
 				let yf = y;

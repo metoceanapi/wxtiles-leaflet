@@ -1,6 +1,8 @@
 // https://stackoverflow.com/questions/36471220/how-can-i-convert-a-uint8array-with-offset-into-an-int32array
 // tile.style.pointerEvents = `auto`; tile.addEventListener(`click`, function(e) {console.log(`X=` + e.offsetX + ` Y=` + e.offsetY + ` ` + coords);});
 
+import L from 'leaflet';
+
 import { RawCLUT, createLegend } from './RawCLUT';
 import { TileCreate, TileEl, WxTile } from './tile';
 import {
@@ -15,8 +17,6 @@ import {
 	AbortableCacheableFunc,
 	getClosestTimeString,
 } from './wxtools';
-
-import L from 'leaflet';
 
 export interface VariableMeta {
 	[name: string]: {
@@ -49,6 +49,7 @@ export interface Meta {
 
 export interface DataSource {
 	serverURI: string; // server to fetch data from
+	maskServerURI?: string; // server to fetch MASK from
 	ext: 'webp' | 'png'; // png / webp (default) - wxtilesplitter output format
 	dataset: string; // dataset of the dataset
 	variables: string[]; // variabls to be used for the layer rendering
@@ -57,6 +58,7 @@ export interface DataSource {
 }
 
 export interface WxLayerState {
+	maskServerURI: string; // server to fetch MASK from
 	time: string;
 	minmax: [number, number][];
 	instance: string;
@@ -121,6 +123,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 		this.dataSource = dataSource;
 		this.state = {
+			maskServerURI: dataSource.maskServerURI || dataSource.serverURI.replace('data', 'mask'),
 			units: 'undefined',
 			baseURL: 'undefined',
 			meta: { maxZoom: 0, times: ['undefined'], variables: ['undefined'], variablesMeta: {} },

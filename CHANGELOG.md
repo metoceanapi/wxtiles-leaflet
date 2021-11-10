@@ -9,6 +9,10 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### added
+- qtree, mask ('sea' | 'land' | 'none'), maskServerURI in DataSource
+- loadImage, imageToData,loadImageData
+
 ## [1.0.6-12] - 2021-09-22
 
 ### fixed

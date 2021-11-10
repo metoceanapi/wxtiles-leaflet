@@ -35,6 +35,7 @@ export interface ColorStyleWeak {
 	addDegrees?: number;
 	units?: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
+	mask?: string;
 }
 
 export interface ColorStylesWeakMixed {
@@ -65,6 +66,7 @@ export interface ColorStyleStrict {
 	addDegrees: number;
 	units: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
+	mask?: string;
 }
 
 export interface ColorStylesStrict {
@@ -171,7 +173,7 @@ function cacheIt(fn: CacheableFunc): CacheableFunc {
 }
 
 // abortable 'loadImage'
-async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
+function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
 	const img = new Image();
 	img.crossOrigin = 'anonymous'; // essential
 	const abortFunc = () => {
@@ -180,16 +182,19 @@ async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEle
 
 	signal.addEventListener('abort', abortFunc);
 	////// Method 1
-	img.src = url;
-	await img.decode();
-	signal.removeEventListener('abort', abortFunc);
-	return img;
+	// img.src = url;
+	// await img.decode();
+	// signal.removeEventListener('abort', abortFunc);
+	// return img;
 
 	//// Method 2
-	// return new Promise((resolve) => {
-	// 	img.onload = () => {signal.removeEventListener('abort', abortFunc);resolve(img);};
-	// 	img.src = url; // should be after .onload
-	// });
+	return new Promise((resolve) => {
+		img.onload = () => {
+			signal.removeEventListener('abort', abortFunc);
+			resolve(img);
+		};
+		img.src = url; // should be after .onload
+	});
 }
 
 interface IntegralPare {
@@ -208,10 +213,23 @@ export interface DataPictureIntegral extends DataPicture {
 	integral: IntegralPare;
 	radius: number;
 }
+
+function imageToData(image: HTMLImageElement): ImageData {
+	const { width, height } = image;
+	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
+	if (!context) throw 'catastrophe';
+	context.drawImage(image, 0, 0);
+	return context.getImageData(0, 0, width, height);
+}
+
+export async function loadImageData(url: string, signal: AbortSignal): Promise<ImageData> {
+	return imageToData(await loadImage(url, signal));
+}
+
 // http://webpjs.appspot.com/ = webp lossless decoder
 // https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
-async function loadDataPicture(url: string, signal: AbortSignal): Promise<DataPictureIntegral> {
-	const pictureToData = (imData: ImageData): DataPictureIntegral => {
+async function loadDataPictureIntegral(url: string, signal: AbortSignal): Promise<DataPictureIntegral> {
+	const dataToPictureIntegral = (imData: ImageData): DataPictureIntegral => {
 		// picTile contains bytes RGBARGBARGBA ...
 		// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
 		const size = imData.height * imData.width;
@@ -234,21 +252,24 @@ async function loadDataPicture(url: string, signal: AbortSignal): Promise<DataPi
 		return { raw, dmin, dmax, dmul, integral, radius: 0 };
 	};
 
-	const context = Object.assign(document.createElement('canvas'), { width: 258, height: 258, imageSmoothingEnabled: false }).getContext('2d');
-	if (!context) return Promise.reject();
-	const img = await loadImage(url, signal); ///*Old approach to solve 'crossorigin' and 'abort'*/ const img = await loadImage(URL.createObjectURL(await (await fetch(url, { signal, cache: 'force-cache' })).blob()));
-	context.drawImage(img, 0, 0);
-	return pictureToData(context.getImageData(0, 0, 258, 258));
+	// const image = await loadImage(url, signal); ///*Old approach to solve 'crossorigin' and 'abort'*/ const img = await loadImage(URL.createObjectURL(await (await fetch(url, { signal, cache: 'force-cache' })).blob()));
+	// const context = Object.assign(document.createElement('canvas'), { width: 258, height: 258, imageSmoothingEnabled: false }).getContext('2d');
+	// if (!context) return Promise.reject();
+	// context.drawImage(image, 0, 0);
+	// return pixelsToData(context.getImageData(0, 0, 258, 258));
+	return dataToPictureIntegral(await loadImageData(url, signal));
 }
 
 export interface AbortableCacheableFunc extends CacheableFunc {
 	abort(): void;
+	controller: AbortController;
 }
 
 export function loadDataPictureCachedAbortable() {
 	const controller = new AbortController();
-	const func = <AbortableCacheableFunc>cacheIt((url: string) => loadDataPicture(url, controller.signal));
+	const func = <AbortableCacheableFunc>cacheIt((url: string) => loadDataPictureIntegral(url, controller.signal));
 	func.abort = () => controller.abort();
+	func.controller = controller;
 	return func;
 }
 
@@ -411,7 +432,7 @@ export function WxTilesLogging(on: boolean) {
 	} else {
 		console.log('Logging off');
 	}
-	
+
 	wxlogging = on;
 }
 
