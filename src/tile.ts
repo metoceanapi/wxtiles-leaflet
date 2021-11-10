@@ -379,7 +379,10 @@ export class WxTile {
 			try {
 				const mask = await loadImageData(url, layer.loadData.controller.signal);
 				applyMask(this.data[0], mask, maskType);
-			} catch (e) {}
+			} catch (e) {
+				this.layer.style.mask = undefined;
+				console.error("Can't load Mask. Turned off");
+			}
 		}
 
 		if (this.layer.vector) {
