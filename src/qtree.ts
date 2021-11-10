@@ -25,7 +25,7 @@ function QTFromString(s: string, o: { pos: number }): QTree {
 
 function Depth(tree: QTreeN): number {
 	let d = 0;
-	if (tree && tree.sub) {
+	if (tree?.sub) {
 		for (let i = 0; i < 4; i++) {
 			if (tree.sub[i] !== null) {
 				const d1 = Depth(tree.sub[i]) + 1;
@@ -45,18 +45,27 @@ export enum TileType {
 	Sea = 'sea',
 }
 
-export function QTreeCheckCoord(c: Coords): TileType {
-	return qTreeCheckCoord(qtseamask, c, qtreedepth <= c.z ? qtreedepth : c.z);
+export function QTreeCheckCoord(coord: Coords): TileType {
+	let c = { ...coord };
+	let deepest = false;
+	if (qtreedepth <= coord.z) {
+		deepest = true;
+		const d = coord.z - qtreedepth;
+		c = { x: coord.x >> d, y: coord.y >> d, z: qtreedepth };
+	}
+
+	return qTreeCheckCoord(qtseamask, c, deepest);
 }
 
-function qTreeCheckCoord(qt: QTreeN, c: Coords, n: number): TileType {
+function qTreeCheckCoord(qt: QTreeN, c: Coords, deepest: boolean): TileType {
 	if (qt === null) return TileType.Land;
+	if (deepest && c.z === 0) return TileType.Mixed; // at the deepest tree level can be only mixed
 	if (qt.sub === null) return TileType.Sea;
-	if (n === 0) return TileType.Mixed;
+	if (c.z === 0) return TileType.Mixed;
 
-	const subz = n - 1;
-	const subx = (c.x >> subz) & 1; // cut the coord's bit at level subz
-	const suby = (c.y >> subz) & 1;
+	c.z--;
+	const subx = (c.x >> c.z) & 1; // cut the coord's bit at level subz
+	const suby = (c.y >> c.z) & 1;
 	const ind = (suby << 1) | subx;
-	return qTreeCheckCoord(qt.sub[ind], c, n - 1);
+	return qTreeCheckCoord(qt.sub[ind], c, deepest);
 }
