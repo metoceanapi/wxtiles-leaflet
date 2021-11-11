@@ -9,9 +9,18 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### Added
+
+- LoadQTree
+
+### Fixed
+
+- QTreeCheckCoord at level > level of the loaded qtree
+
 ## [1.0.6-15] - 2021-11-10
 
 ### added
+
 - qtree, mask ('sea' | 'land' | 'none'), maskServerURI in DataSource
 - loadImage, imageToData,loadImageData
 
