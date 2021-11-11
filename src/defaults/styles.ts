@@ -22,7 +22,7 @@ export const __colorStyles_default_preset: ColorStylesStrict = {
 		addDegrees: 0,
 		units: '',
 		extraUnits: undefined,
-		mask: 'sea',
+		mask: 'none',
 	},
 	custom: {
 		parent: undefined,
@@ -45,6 +45,6 @@ export const __colorStyles_default_preset: ColorStylesStrict = {
 		addDegrees: 0,
 		units: '',
 		extraUnits: undefined,
-		mask: 'sea',
+		mask: 'none',
 	},
 };

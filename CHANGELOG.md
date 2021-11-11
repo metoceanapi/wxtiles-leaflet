@@ -9,6 +9,10 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### Fixed
+
+- default: mask = none
+
 ## [1.0.6-16] - 2021-11-11
 
 ### Added
