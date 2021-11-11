@@ -16,6 +16,8 @@ import {
 	ColorStyleStrict,
 	AbortableCacheableFunc,
 	getClosestTimeString,
+	DataIntegral,
+	loadMaskCachedAbortable,
 } from './wxtools';
 
 export interface VariableMeta {
@@ -90,7 +92,8 @@ export class WxTilesLayer extends L.GridLayer {
 	protected styles: ColorStylesStrict = WxGetColorStyles();
 	dataSource: DataSource;
 	style: ColorStyleStrict = Object.assign({}, this.styles['base']);
-	loadData: AbortableCacheableFunc = loadDataPictureCachedAbortable();
+	loadData: AbortableCacheableFunc<Promise<DataIntegral>> = loadDataPictureCachedAbortable();
+	loadMask: AbortableCacheableFunc<Promise<ImageData>> = loadMaskCachedAbortable(new AbortController());
 	error: string | null = incompleteSetup;
 	vector: boolean = false;
 	clut: RawCLUT = new RawCLUT(this.style, '', [0, 2], false);
@@ -515,7 +518,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 	protected _stopSlinesAnimation() {
 		cancelAnimationFrame(this.animFrame);
-		// this.wxtiles.forEach((wxtile) => wxtile.clearSLinesCanvas());
+		this.wxtiles.forEach((wxtile) => wxtile.clearSLinesCanvas());
 		this.animFrame = 0;
 	}
 

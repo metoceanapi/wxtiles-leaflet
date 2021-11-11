@@ -157,11 +157,12 @@ function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStri
 	return styles;
 }
 
-type CacheableFunc = (url: string) => Promise<DataPicture>;
+// type CacheableFunc<T> = (url: string) => Promise<T>;
+type CacheableFunc<T> = (url: string) => T;
 
 // Caches
-function cacheIt(fn: CacheableFunc): CacheableFunc {
-	const cache = new Map<string, Promise<DataPicture>>();
+function cacheIt<T>(fn: CacheableFunc<T>): CacheableFunc<T> {
+	const cache = new Map<string, T>();
 	return (url: string) => {
 		let res = cache.get(url);
 		if (res === undefined) {
@@ -174,16 +175,29 @@ function cacheIt(fn: CacheableFunc): CacheableFunc {
 
 // abortable 'loadImage'
 async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
+	//// Method 0
+	const blob = await (await fetch(url, { signal })).blob();
 	const img = new Image();
-	img.crossOrigin = 'anonymous'; // essential
-	const abortFunc = () => (img.src = ''); // stop loading
-	signal.addEventListener('abort', abortFunc);
-	//// Method 1
-	img.src = url;
-	await img.decode();
-	signal.removeEventListener('abort', abortFunc);
+	if (!signal.aborted) {
+		const imageObjectURL = URL.createObjectURL(blob);
+		img.src = imageObjectURL;
+		await img.decode();
+		URL.revokeObjectURL(imageObjectURL);
+	}
+
 	return img;
 
+	// const img = new Image();
+	// img.crossOrigin = 'anonymous'; // essential
+	// const abortFunc = () => (img.src = ''); // stop loading
+	// signal.addEventListener('abort', abortFunc);
+
+	// //// Method 1
+	// img.src = url;
+	// await img.decode();
+	// signal.removeEventListener('abort', abortFunc);
+	// return img;
+	
 	//// Method 2
 	// return new Promise((resolve, reject) => {
 	// 	img.onerror = (e) => {
@@ -261,14 +275,21 @@ async function loadDataIntegral(url: string, signal: AbortSignal): Promise<DataI
 	return dataToIntegral(await loadImageData(url, signal));
 }
 
-export interface AbortableCacheableFunc extends CacheableFunc {
+export interface AbortableCacheableFunc<T> extends CacheableFunc<T> {
 	abort(): void;
 	controller: AbortController;
 }
 
-export function loadDataPictureCachedAbortable() {
+export function loadDataPictureCachedAbortable(): AbortableCacheableFunc<Promise<DataIntegral>> {
 	const controller = new AbortController();
-	const func = <AbortableCacheableFunc>cacheIt((url: string) => loadDataIntegral(url, controller.signal));
+	const func = <AbortableCacheableFunc<Promise<DataIntegral>>>cacheIt((url: string) => loadDataIntegral(url, controller.signal));
+	func.abort = () => controller.abort();
+	func.controller = controller;
+	return func;
+}
+
+export function loadMaskCachedAbortable(controller: AbortController) {
+	const func = <AbortableCacheableFunc<Promise<ImageData>>>cacheIt((url: string) => loadImageData(url, controller.signal));
 	func.abort = () => controller.abort();
 	func.controller = controller;
 	return func;
@@ -382,8 +403,8 @@ export function HEXtoRGBA(c: string): number {
 }
 
 // json loader helper
-export async function fetchJson(url: RequestInfo) {
-	return (await fetch(url)).json();
+export async function fetchJson(url: RequestInfo, init?: RequestInit) {
+	return (await fetch(url, init)).json();
 }
 
 export function createEl(tagName: string, className = '', container?: HTMLElement) {

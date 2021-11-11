@@ -1,5 +1,4 @@
 import { Coords } from './tile';
-import { seamask } from './defaults/seamask';
 
 type QTreeN = QTree | null;
 type QTSub = [QTreeN, QTreeN, QTreeN, QTreeN] | null;
@@ -8,9 +7,21 @@ interface QTree {
 }
 
 const fullSimbol = 'A'.charCodeAt(0);
-const qtseamask = QTFromString(seamask, { pos: 0 });
-const qtreedepth = Depth(qtseamask);
-console.log(qtreedepth);
+let qtree: QTree;
+let qtreedepth: number = 0;
+export async function LoadQTree(input: RequestInfo, init?: RequestInit | undefined) {
+	let _seamask: string;
+	try {
+		_seamask = (await (await fetch(input, init)).json()) as string;
+	} catch (e) {
+		console.log("Can't load QTree:", e);
+		return;
+	}
+
+	qtree = QTFromString(_seamask, { pos: 0 });
+	qtreedepth = Depth(qtree);
+	console.log('Loaded QTree, depth:', qtreedepth);
+}
 
 function QTFromString(s: string, o: { pos: number }): QTree {
 	const code = s.charCodeAt(o.pos) - fullSimbol;
@@ -46,6 +57,7 @@ export enum TileType {
 }
 
 export function QTreeCheckCoord(coord: Coords): TileType {
+	if (!qtreedepth) return TileType.Mixed;
 	let c = { ...coord };
 	let deepest = false;
 	if (qtreedepth <= coord.z) {
@@ -54,7 +66,7 @@ export function QTreeCheckCoord(coord: Coords): TileType {
 		c = { x: coord.x >> d, y: coord.y >> d, z: qtreedepth };
 	}
 
-	return qTreeCheckCoord(qtseamask, c, deepest);
+	return qTreeCheckCoord(qtree, c, deepest);
 }
 
 function qTreeCheckCoord(qt: QTreeN, c: Coords, deepest: boolean): TileType {

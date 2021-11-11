@@ -1,6 +1,6 @@
 'use strict';
 
-const { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles } = window.wxtilesjs;
+const { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, LoadQTree } = window.wxtilesjs;
 const { CreateWxTilesWatermark, CreateWxTilesLayer, CreateWxDebugCoordsLayer } = window.wxtilesjs;
 const L = window.L;
 
@@ -412,6 +412,7 @@ async function start() {
 	// ESSENTIAL step to get lib ready.
 	WxTilesLibSetup(wxlibCustomSettings); // load fonts and styles, units, colorschemas - empty => defaults
 	await document.fonts.ready; // !!! IMPORTANT: make sure fonts (barbs, arrows, etc) are loaded
+	await LoadQTree(config.dataServer + 'seamask.qtree');
 
 	// WxDebugCoordsLayer().addTo(map);
 

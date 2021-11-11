@@ -9,6 +9,7 @@ import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
 export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
 export { WxTilesLayer, WxTilesLayerSettings, DataSource } from './tilesLayer';
+export { LoadQTree } from './qtree';
 
 export function CreateWxTilesLayer(settings: WxTilesLayerSettings): WxTilesLayer {
 	return new WxTilesLayer(settings);

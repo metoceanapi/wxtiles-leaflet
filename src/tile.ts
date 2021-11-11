@@ -1,8 +1,7 @@
-import { blurData, RGBtoHEX, HEXtoRGBA, createEl, loadImageData } from './wxtools';
-import { DataPicture, DataIntegral, ColorStyleStrict } from './wxtools';
-import { RawCLUT } from './RawCLUT';
+import { blurData, RGBtoHEX, HEXtoRGBA, createEl, WXLOG } from './wxtools';
+import { DataPicture, DataIntegral } from './wxtools';
 import { coordToPixel, PixelsToLonLat } from './mercator';
-import { BoundaryMeta, DataSource, WxTilesLayer } from './tilesLayer';
+import { BoundaryMeta, WxTilesLayer } from './tilesLayer';
 import { QTreeCheckCoord, TileType } from './qtree';
 
 export interface Coords {
@@ -265,9 +264,9 @@ export class WxTile {
 	}
 
 	draw(): void {
+		this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
+		this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
 		if (!this.data.length) {
-			this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
-			this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
 			return;
 		}
 
@@ -279,7 +278,6 @@ export class WxTile {
 
 	clearSLinesCanvas(): void {
 		this.canvasSlinesCtx.clearRect(0, 0, 256, 256);
-		// this.canvasSlines.getContext('2d').clearRect(0, 0, 256, 256);
 	} // clearSLinesCanvas
 
 	drawSLines(timeStemp: number): void {
@@ -287,7 +285,7 @@ export class WxTile {
 		if (this.sLines.length === 0) return;
 
 		const ctx = this.canvasSlinesCtx; // .getContext('2d');
-		ctx.clearRect(0, 0, 256, 256);
+		ctx.clearRect(0, 0, 256, 256); // transfered to this.draw
 		if (this.layer.style.streamLineColor === 'none') {
 			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
@@ -330,6 +328,7 @@ export class WxTile {
 		// clean data up on load start
 		this.data = [];
 		this.imData = null;
+		this.sLines = [];
 
 		const { coords, layer } = this;
 		const { boundaries } = layer.state.meta;
@@ -357,10 +356,8 @@ export class WxTile {
 		}
 
 		const { upCoords, subCoords } = this._splitCoords(coords);
-
 		const URLs = this._coordsToURLs(upCoords);
-
-		let data: DataPicture[];
+		let data: DataIntegral[];
 		try {
 			data = await Promise.all(URLs.map(layer.loadData));
 		} catch (e) {
@@ -368,25 +365,27 @@ export class WxTile {
 		}
 
 		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
-		// combine 'subCoords' and 'blurRadius' in 'processor'
-		const processor = (d: DataPicture) => interpolator(blurData(<DataIntegral>d, this.layer.style.blurRadius), subCoords);
-		this.data = data.map(processor); // preprocess all loaded data
+		this.data = data.map((d) => interpolator(blurData(d, this.layer.style.blurRadius), subCoords)); // preprocess all loaded data
 		this.imData = this.canvasFillCtx.createImageData(256, 256);
+
+		if (this.layer.vector) {
+			this._vectorPrepare();
+		}
 
 		if (maskType && tileType === TileType.Mixed) {
 			// const url = 'http://localhost:8080/' + coords.z + '/' + coords.x + '/' + coords.y;
 			const url = layer.state.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
 			try {
-				const mask = await loadImageData(url, layer.loadData.controller.signal);
+				const mask = await layer.loadMask(url);
+				// const mask = await loadImageData(url, layer.loadData.controller.signal);
 				applyMask(this.data[0], mask, maskType);
 			} catch (e) {
 				this.layer.style.mask = undefined;
-				console.error("Can't load Mask. Turned off");
+				WXLOG("Can't load Mask. Turned off");
 			}
 		}
 
 		if (this.layer.vector) {
-			this._vectorPrepare();
 			this._createSLines();
 		}
 
@@ -431,7 +430,7 @@ export class WxTile {
 		if (!imData) throw '_drawFillAndIsolines: !imData';
 
 		const { canvasFillCtx } = this;
-		canvasFillCtx.clearRect(0, 0, 256, 256);
+		// canvasFillCtx.clearRect(0, 0, 256, 256); // transfered to this.draw
 		const im = new Uint32Array(imData.data.buffer); // a usefull representation of image's bytes (same memory)
 		const { raw } = this.data[0]; // scalar data
 		const { clut, style } = this.layer;
@@ -518,10 +517,9 @@ export class WxTile {
 	} // drawIsolines
 
 	protected _drawStaticSlines(): void {
-		// 'timeStemp' is a time tick given by the browser's scheduller
 		if (!this.sLines.length || !this.layer.style.streamLineStatic) return;
 		const { canvasSlinesCtx } = this;
-		canvasSlinesCtx.clearRect(0, 0, 256, 256);
+		// canvasSlinesCtx.clearRect(0, 0, 256, 256);  // transfered to this.draw
 		if (this.layer.style.streamLineColor === 'none') {
 			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
