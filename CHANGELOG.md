@@ -9,6 +9,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.8] - 2021-11-15
+
 ### FIXED
 
 - auto deducing of a source of mask-tiles
