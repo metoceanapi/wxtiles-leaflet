@@ -606,8 +606,8 @@ export class WxTile {
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
 		canvasVectorCtx.font = '50px arrows';
-		canvasVectorCtx.textAlign = 'start';
-		canvasVectorCtx.textBaseline = 'alphabetic';
+		canvasVectorCtx.textAlign = 'center';
+		canvasVectorCtx.textBaseline = 'middle';
 		// ctx.clearRect(0, 0, 256, 256);
 		const l = this.data[0];
 		const vecChar = 'L';
