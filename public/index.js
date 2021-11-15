@@ -78,7 +78,6 @@ async function loadVariable_selectVariableEl_onchange() {
 	const layerSettings = {
 		dataSource: {
 			serverURI: config.dataServer, // server to fetch data from
-			maskServerURI: 'http://localhost:8080/{z}/{x}/{y}',
 			ext: config.ext, // png / webp (default) - wxtilesplitter output format
 			dataset: selectDataSetEl.value, // dataset of the dataset
 			variables, // variable(s) to be used for the layer rendering

@@ -126,7 +126,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 		this.dataSource = dataSource;
 		this.state = {
-			maskServerURI: dataSource.maskServerURI || dataSource.serverURI.replace('data', 'mask'),
+			maskServerURI: dataSource.maskServerURI || dataSource.serverURI.replace(/\/data\/?/i, '/mask/{z}/{x}/{y}'),
 			units: 'undefined',
 			baseURL: 'undefined',
 			meta: { maxZoom: 0, times: ['undefined'], variables: ['undefined'], variablesMeta: {} },
