@@ -9,6 +9,16 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.10] - 2021-11-25
+
+### FIXED
+
+- setTime and cacheIt - remastering
+
+### ADDED
+
+- proper comments for some exported functions
+
 ## [1.0.9] - 2021-11-15
 
 ### FIXED
