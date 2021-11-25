@@ -187,7 +187,7 @@ function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPi
 }
 
 export interface TileEl extends HTMLElement {
-	wxtile: WxTile;
+	wxtile?: WxTile;
 }
 
 export interface TileCreateParams {
