@@ -163,37 +163,36 @@ type CacheableFunc<T> = (url: string) => T;
 // Caches
 function cacheIt<T>(fn: CacheableFunc<T>): CacheableFunc<T> {
 	const cache = new Map<string, T>();
-	return (url: string) => {
-		let res = cache.get(url);
-		if (res === undefined) {
-			res = fn(url);
-			cache.set(url, res);
-			// delete from cache aborted images, so they could be reloaded
-			if (res instanceof Promise)
-				res.catch((e) => {
-					if (e instanceof DOMException) {
-						cache.delete(url);
-					}
-				});
+	return (url: string): T => {
+		const resCached = cache.get(url);
+		if (resCached === undefined) {
+			const res = fn(url);
+			if (res instanceof Promise) {
+				res
+					.then(() => cache.set(url, res))
+					.catch((e) => {
+						if (!(e instanceof DOMException)) {
+							// cache any result (even falures) except aborted (images), so they could be reloaded
+							cache.set(url, res);
+						}
+					});
+			} else {
+				cache.set(url, res);
+			}
+
+			return res;
 		}
-		return res;
+		return resCached;
 	};
 }
 
 // abortable 'loadImage'
 async function loadImage(url: string, controllerHolder: AbortControllerHolder): Promise<HTMLImageElement> {
 	//// Method 0
-	const { signal } = controllerHolder.controller;
-	var t: RequestInit;
-	const blob = await (await fetch(url, { signal })).blob();
 	const img = new Image();
-	if (!signal.aborted) {
-		const imageObjectURL = URL.createObjectURL(blob);
-		img.src = imageObjectURL;
-		await img.decode();
-		URL.revokeObjectURL(imageObjectURL);
-	}
-
+	img.src = URL.createObjectURL(await (await fetch(url, controllerHolder.controller)).blob());
+	await img.decode();
+	URL.revokeObjectURL(img.src);
 	return img;
 
 	// const img = new Image();
