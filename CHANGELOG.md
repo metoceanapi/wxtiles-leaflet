@@ -9,6 +9,16 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.11] - 2021-11-25
+
+### FIXED
+
+- cacheIt - do cache when promise is resolved
+
+### REVERT
+
+- "TileEl.wxtile?"
+
 ## [1.0.10] - 2021-11-25
 
 ### FIXED
