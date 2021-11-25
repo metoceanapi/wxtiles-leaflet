@@ -1,39 +1,26 @@
 const esbuild = require('esbuild');
 const express = require('express');
-const { externalGlobalPlugin } = require('esbuild-plugin-external-global');
 
-const sharedConfig = {
-	entryPoints: ['src/wxtiles.ts'],
-	bundle: true,
-	loader: {
-		'.woff': 'base64',
-	},
-	plugins: [
-		externalGlobalPlugin({
-			leaflet: 'window.L',
-		}),
-	],
-	target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
-	globalName: 'wxtilesjs',
-	minify: false,
-	sourcemap: true,
-};
-
-// build for web
 esbuild
 	.build({
-		...sharedConfig,
+		entryPoints: ['src_example/index.ts'],
+		bundle: true,
+		plugins: [],
+		loader: {
+			'.png': 'base64',
+			'.woff': 'base64',
+		},
+		target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
 		format: 'iife',
-		outdir: 'public/wxtiles',
-
+		outfile: 'public/script/script.js',
 		sourcemap: true,
+		minify: false,
 		watch: {
 			onRebuild(error, result) {
 				if (error) {
 					console.error('watch build failed:', error);
 				} else {
 					console.log('rebuilded', new Date());
-					// !disableHotReload && watchResponse && watchResponse.write('data: refresh\n\n');
 				}
 			},
 		},
@@ -42,15 +29,7 @@ esbuild
 		const app = express();
 		app.use(express.static('public'));
 
-		const PORT = 3001;
-
-		app.get('/watch', function (req, res) {
-			res.writeHead(200, {
-				'Content-Type': 'text/event-stream',
-				'Cache-Control': 'no-cache',
-				Connection: 'keep-alive',
-			});
-		});
+		const PORT = 3002;
 
 		const url = `http://localhost:${PORT}`;
 		app.listen(PORT, () => {

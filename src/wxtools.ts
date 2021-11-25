@@ -168,14 +168,23 @@ function cacheIt<T>(fn: CacheableFunc<T>): CacheableFunc<T> {
 		if (res === undefined) {
 			res = fn(url);
 			cache.set(url, res);
+			// delete from cache aborted images, so they could be reloaded
+			if (res instanceof Promise)
+				res.catch((e) => {
+					if (e instanceof DOMException) {
+						cache.delete(url);
+					}
+				});
 		}
 		return res;
 	};
 }
 
 // abortable 'loadImage'
-async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageElement> {
+async function loadImage(url: string, controllerHolder: AbortControllerHolder): Promise<HTMLImageElement> {
 	//// Method 0
+	const { signal } = controllerHolder.controller;
+	var t: RequestInit;
 	const blob = await (await fetch(url, { signal })).blob();
 	const img = new Image();
 	if (!signal.aborted) {
@@ -197,7 +206,7 @@ async function loadImage(url: string, signal: AbortSignal): Promise<HTMLImageEle
 	// await img.decode();
 	// signal.removeEventListener('abort', abortFunc);
 	// return img;
-	
+
 	//// Method 2
 	// return new Promise((resolve, reject) => {
 	// 	img.onerror = (e) => {
@@ -229,6 +238,10 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
+interface AbortControllerHolder {
+	controller: AbortController;
+}
+
 function imageToData(image: HTMLImageElement): ImageData {
 	const { width, height } = image;
 	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
@@ -237,20 +250,19 @@ function imageToData(image: HTMLImageElement): ImageData {
 	return context.getImageData(0, 0, width, height);
 }
 
-export async function loadImageData(url: string, signal: AbortSignal): Promise<ImageData> {
-	return imageToData(await loadImage(url, signal));
+export async function loadImageData(url: string, controllerHolder: AbortControllerHolder): Promise<ImageData> {
+	return imageToData(await loadImage(url, controllerHolder));
 }
 
 // http://webpjs.appspot.com/ = webp lossless decoder
 // https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
-async function loadDataIntegral(url: string, signal: AbortSignal): Promise<DataIntegral> {
+function loadDataIntegral(url: string, controllerHolder: AbortControllerHolder): Promise<DataIntegral> {
 	const dataToIntegral = (imData: ImageData): DataIntegral => {
 		// picTile contains bytes RGBARGBARGBA ...
 		// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
-		const size = imData.height * imData.width;
 		const imbuf = new Uint16Array(imData.data.buffer);
-		const raw = new Uint16Array(size);
-		for (let i = 0; i < size; i++) {
+		const raw = new Uint16Array(imbuf.length / 2);
+		for (let i = 0; i < raw.length; i++) {
 			raw[i] = imbuf[i * 2];
 		}
 
@@ -272,26 +284,25 @@ async function loadDataIntegral(url: string, signal: AbortSignal): Promise<DataI
 	// if (!context) return Promise.reject();
 	// context.drawImage(image, 0, 0);
 	// return pixelsToData(context.getImageData(0, 0, 258, 258));
-	return dataToIntegral(await loadImageData(url, signal));
+	return loadImageData(url, controllerHolder).then(dataToIntegral);
+	// return dataToIntegral(await loadImageData(url, signal));
 }
 
 export interface AbortableCacheableFunc<T> extends CacheableFunc<T> {
-	abort(): void;
-	controller: AbortController;
+	controllerHolder: AbortControllerHolder;
 }
 
 export function loadDataPictureCachedAbortable(): AbortableCacheableFunc<Promise<DataIntegral>> {
-	const controller = new AbortController();
-	const func = <AbortableCacheableFunc<Promise<DataIntegral>>>cacheIt((url: string) => loadDataIntegral(url, controller.signal));
-	func.abort = () => controller.abort();
-	func.controller = controller;
+	const controllerHolder: AbortControllerHolder = { controller: new AbortController() };
+	const func = <AbortableCacheableFunc<Promise<DataIntegral>>>cacheIt((url: string) => loadDataIntegral(url, controllerHolder));
+	func.controllerHolder = controllerHolder;
 	return func;
 }
 
-export function loadMaskCachedAbortable(controller: AbortController) {
-	const func = <AbortableCacheableFunc<Promise<ImageData>>>cacheIt((url: string) => loadImageData(url, controller.signal));
-	func.abort = () => controller.abort();
-	func.controller = controller;
+export function loadImageDataCachedAbortable(controller: AbortController) {
+	const controllerHolder: AbortControllerHolder = { controller };
+	const func = <AbortableCacheableFunc<Promise<ImageData>>>cacheIt((url: string) => loadImageData(url, controllerHolder));
+	func.controllerHolder = controllerHolder;
 	return func;
 }
 
@@ -407,7 +418,7 @@ export async function fetchJson(url: RequestInfo, init?: RequestInit) {
 	return (await fetch(url, init)).json();
 }
 
-export function createEl(tagName: string, className = '', container?: HTMLElement) {
+export function createEl(tagName: string, className = '', container?: HTMLElement): HTMLElement {
 	const el = document.createElement(tagName); // Object.assign(document.createElement(tagName), { className });
 	el.className = className;
 	container && container.appendChild?.(el);
@@ -441,7 +452,8 @@ export function createLevels(min: number, max: number, n: number): number[] {
 	return levels;
 }
 
-export function getClosestTimeString(times: string[], unixTime: number) {
+export function getClosestTimeString(times: string[], time: Date | string | number) {
+	let unixTime: number = typeof time === 'number' ? time : typeof time === 'string' ? new Date(time).getTime() : time.getTime();
 	// Take the next times[]'s after unixTime OR the last
 	return times.find((stime) => new Date(stime).getTime() >= unixTime) || times[times.length - 1];
 }
@@ -460,6 +472,6 @@ export function WxTilesLogging(on: boolean) {
 
 export function WXLOG(...str: any) {
 	if (wxlogging) {
-		console.log(...str);
+		console.trace(...str);
 	}
 }

@@ -1,22 +1,34 @@
-'use strict';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet'; // goes first always!
 
-const { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, LoadQTree } = window.wxtilesjs;
-const { CreateWxTilesWatermark, CreateWxTilesLayer, CreateWxDebugCoordsLayer } = window.wxtilesjs;
-const L = window.L;
+import {
+	WxTilesLogging,
+	WxTilesLibSetup,
+	CreateWxTilesWatermark,
+	CreateWxTilesLayer,
+	CreateWxDebugCoordsLayer,
+	WxGetColorStyles,
+	WxTilesLayer,
+	LoadQTree,
+	Meta,
+	Legend,
+	ColorStylesStrict,
+} from '../src/wxtiles';
+import '../src/wxtiles.css';
 
-let map;
-let layerControl;
-let config;
-let styles; // all available styles. Not every style is sutable for every layer.
-let layer; // current layer
+let map: L.Map;
+let layerControl: L.Control.Layers;
+let config: Config; // application config
+let styles: ColorStylesStrict; // all available styles. Not every style is sutable for every layer.
+let globalLayer: WxTilesLayer | undefined; // current layer
 
 // json loader helper
-async function fetchJson(url) {
+async function fetchJson(url: string) {
 	return (await fetch(url)).json();
 }
 
 async function fillDataSets() {
-	let datasetsNames;
+	let datasetsNames: string[];
 
 	try {
 		datasetsNames = await fetchJson(config.dataServer + '/datasets.json');
@@ -39,7 +51,7 @@ async function fillDataSets() {
 async function fillVariables_selectDataSetEl_onchange() {
 	const oldVariable = selectVariableEl.value;
 	selectVariableEl.innerHTML = '';
-	let meta;
+	let meta: Meta;
 	try {
 		const instances = await fetchJson(config.dataServer + '/' + selectDataSetEl.value + '/instances.json');
 		const instance = instances[instances.length - 1];
@@ -75,9 +87,11 @@ async function loadVariable_selectVariableEl_onchange() {
 	if (variable.includes('eastward')) {
 		variables.push(variable.replace('eastward', 'northward'));
 	}
+
 	const layerSettings = {
 		dataSource: {
 			serverURI: config.dataServer, // server to fetch data from
+			maskServerURI: config.dataServer.replace(/\/data\/?/i, '/mask/{z}/{x}/{y}'),
 			ext: config.ext, // png / webp (default) - wxtilesplitter output format
 			dataset: selectDataSetEl.value, // dataset of the dataset
 			variables, // variable(s) to be used for the layer rendering
@@ -89,29 +103,30 @@ async function loadVariable_selectVariableEl_onchange() {
 		// 'false': start loading immediately, but loading is not finished when layer is created.
 		// the signal 'setupcomplete' is fired when loading is finished.
 		// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
-		lazy: false,
+		// lazy: true,
 		options: {
 			opacity: 1,
 		},
 	};
 
 	// save in order to delete old layer
-	const oldLayer = layer; // this is to store oldLayer in order a user change layers too fast.
-	layer = CreateWxTilesLayer(layerSettings);
-	await layer.getSetupCompletePromise(); // 'complete' doesn't mean 'loaded' !!!
-	layer.addTo(map);
-	layerControl.addOverlay(layer, layerSettings.dataSource.name);
+	const oldLayer = globalLayer; // this is to store oldLayer in order a user change layers too fast.
+	globalLayer = CreateWxTilesLayer(layerSettings);
+	await globalLayer.getSetupCompletePromise(); // wait for meta info to be loaded. doesn't mean 'tiles are loaded' !!!
+	globalLayer.addTo(map);
+
+	layerControl.addOverlay(globalLayer, layerSettings.dataSource.name);
 	if (oldLayer)
-		layer.once('load', () => {
+		globalLayer.once('load', () => {
 			oldLayer.removeFrom(map);
-			oldLayer.removeFrom(layerControl);
+			layerControl.removeLayer(oldLayer);
 		}); // delete old layer
-	layer.setTime(selectTimeEl.value !== '' ? new Date(selectTimeEl.value).getTime() : Date.now()); // try to preserve 'time' from current time of selectTimeEl
-	fillTimes(layer);
-	fillStyles(layer);
+	globalLayer.setTime(selectTimeEl.value !== '' ? selectTimeEl.value : new Date()); // try to preserve 'time' from current time of selectTimeEl
+	fillTimes(globalLayer);
+	fillStyles(globalLayer);
 }
 
-function fillTimes(layer) {
+function fillTimes(layer: WxTilesLayer) {
 	// once layer setup finished, times are available.
 	// let's fill up 'selectTimeEl'
 	selectTimeEl.innerHTML = '';
@@ -125,52 +140,44 @@ function fillTimes(layer) {
 	selectTimeEl.value = layer.getTime();
 }
 
-function setTime_selectTimeEl_onchange() {
-	stopPlay();
-	layer.setTime(new Date(selectTimeEl.value).getTime());
-	selectTimeEl.value = layer.getTime();
-}
-
-function startStopPlay() {
-	this.textContent === 'play' ? startPlay() : stopPlay();
-}
-
 function startPlay() {
-	if (!layer || !layer.setTimeAnimationMode) return;
-	// const nextTimeStep = async () => { };
+	if (!globalLayer) return;
 	buttonPlayStopEl.textContent = 'stop';
-	layer.setTimeAnimationMode(+inputCoarseLevelEl.value);
+	globalLayer.setTimeAnimationMode(+inputCoarseLevelEl.value);
 	setTimeout(async function nextTimeStep() {
+		if (!globalLayer) return;
 		if (buttonPlayStopEl.textContent === 'stop') {
 			const start = Date.now();
-			await layer.setTime(new Date(selectTimeEl.value).getTime());
+			await globalLayer.setTime(selectTimeEl.value);
 			selectTimeEl.selectedIndex++;
 			selectTimeEl.selectedIndex %= selectTimeEl.length;
 			const dt = +inputAnimDelayEl.value - (Date.now() - start);
 			setTimeout(nextTimeStep, dt < 0 ? 0 : dt);
-			updateInfoPanel();
+			oldE && updateInfoPanel(oldE);
 		}
 	});
 }
 
 function stopPlay() {
 	buttonPlayStopEl.textContent = 'play';
-	layer?.unsetTimeAnimationMode();
+	globalLayer?.unsetTimeAnimationMode();
 }
 
-function addOption(baseStyle, value = baseStyle) {
+function addOption(baseStyle: string, value = baseStyle) {
 	const opt = document.createElement('option');
 	opt.appendChild(document.createTextNode(baseStyle));
 	opt.value = value;
 	selectStyleEl.appendChild(opt);
 }
 
-function fillStyles(layer) {
+function fillStyles(layer: WxTilesLayer) {
 	selectStyleEl.innerHTML = '';
-	for (const [regexp, styleName] of config.varToStyleMap) {
-		const regExp = new RegExp(regexp, 'i');
-		if (styleName in styles && regExp.test(layer.dataSource.variables[0])) {
-			addOption(styles[styleName].name, styleName);
+	if (config.varToStyleMap) {
+		for (const [regexp, styleName] of config.varToStyleMap) {
+			const regExp = new RegExp(regexp, 'i');
+			if (styleName in styles && regExp.test(layer.dataSource.variables[0])) {
+				addOption(styles[styleName].name, styleName);
+			}
 		}
 	}
 
@@ -179,7 +186,7 @@ function fillStyles(layer) {
 	onStyleChange_selectStyleEl_onchange();
 }
 
-function JSONsort(o) {
+function JSONsort(o: any) {
 	if (Array.isArray(o)) {
 		return o.map(JSONsort);
 	} else if (typeof o === 'object' && o !== null) {
@@ -198,25 +205,15 @@ function JSONsort(o) {
 	return o;
 }
 
-// function relax(o) {
-// 	for (const styleName in o) {
-// 		if (styleName === 'base') continue;
-// 		for (const field in o[styleName]) {
-// 			if (o[styleName][field] === __colorStyles_default_preset.base[field]) {
-// 				delete o[styleName][field];
-// 			}
-// 		}
-// 	}
-// 	return o;
-// }
-
 function onStyleChange_selectStyleEl_onchange() {
+	if (!globalLayer) return;
 	if (selectStyleEl.value === 'custom') {
 		try {
 			styles.custom = JSON.parse(customStyleEl.value);
 		} catch {
 			console.log('Wrong custom style');
 			const ctx = legendCanvasEl.getContext('2d');
+			if (!ctx) return;
 			ctx.clearRect(0, 0, legendCanvasEl.width, legendCanvasEl.height);
 			ctx.beginPath();
 			ctx.font = legendCanvasEl.height / 2 + 'px sans-serif';
@@ -225,22 +222,23 @@ function onStyleChange_selectStyleEl_onchange() {
 			return;
 		}
 	}
-	layer.setStyle(selectStyleEl.value);
-	const curStyleName = layer.getStyle();
+	globalLayer.setStyle(selectStyleEl.value);
+	const curStyleName = globalLayer.getStyle();
 	const curStyle = styles[curStyleName];
 	customStyleEl.value = JSON.stringify(JSONsort(curStyle), null, '    ');
-	const legend = layer.getLegendData(legendCanvasEl.width - 50);
+	const legend = globalLayer.getLegendData(legendCanvasEl.width - 50);
+	if (!legend) return;
 	drawLegend({ legend, canvas: legendCanvasEl });
 }
 
-function drawLegend({ legend, canvas }) {
-	if (!canvas || !legend) return;
+function drawLegend({ legend, canvas }: { legend: Legend; canvas: HTMLCanvasElement }) {
+	if (!globalLayer || !canvas || !legend) return;
 
 	const { width, height } = canvas;
 	const halfHeight = (16 + height) >> 2;
 
 	// draw legend
-	const ctx = canvas.getContext('2d');
+	const ctx = canvas.getContext('2d')!;
 	const imData = ctx.createImageData(width, height);
 	const im = new Uint32Array(imData.data.buffer);
 	im.fill(-1);
@@ -296,7 +294,7 @@ function drawLegend({ legend, canvas }) {
 		ctx.fillText(tick.dataString, tick.pos + trSize + startX + 1, halfHeight + 11);
 	}
 	ctx.font = '12px sans-serif';
-	const txt = layer.getStyleName() + ' (' + legend.units + ')';
+	const txt = globalLayer.getStyleName() + ' (' + legend.units + ')';
 	ctx.fillText(txt, 13, height - 5);
 	ctx.stroke();
 
@@ -304,21 +302,19 @@ function drawLegend({ legend, canvas }) {
 	ctx.strokeRect(1, 1, width - 3, height - 2); //for white background
 }
 
-let oldE;
-function updateInfoPanel(e) {
-	oldE = e = e ?? oldE; // save or restore 'e'
-	if (!e) return;
+let oldE: L.LeafletMouseEvent | undefined;
+function updateInfoPanel(e: L.LeafletMouseEvent) {
+	oldE = e; // save 'e'
 	let content = '' + `${e.latlng}<br>`;
 	map.eachLayer((layer) => {
-		if (layer.getTile) {
-			// check if layer is a wxLayer
-			const tile = layer.getTile(e.latlng);
+		if (layer instanceof WxTilesLayer) {
+			const tile = layer.getTile(e!.latlng);
 			const { min, max } = layer.getMinMax();
 
 			content += tile
 				? `<div>
 				<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-				${tile.tile.layer.dataSource.name}=${tile.inStyleUnits.toFixed(2)} ${tile.units} (${min.toFixed(2)}, ${max.toFixed(2)})
+				${layer.dataSource.name}=${tile.inStyleUnits.toFixed(2)} ${tile.units} (${min.toFixed(2)}, ${max.toFixed(2)})
 				</div>`
 				: '';
 		}
@@ -327,11 +323,10 @@ function updateInfoPanel(e) {
 	infoPanelEl.innerHTML = content;
 }
 
-function popupInfo(e) {
+function popupInfo(e: L.LeafletMouseEvent) {
 	let content = '';
 	map.eachLayer((layer) => {
-		if (layer.getTile) {
-			// check if layer is a wxLayer
+		if (layer instanceof WxTilesLayer) {
 			const tile = layer.getTile(e.latlng);
 			const time = layer.getTime();
 			content += tile
@@ -342,10 +337,10 @@ function popupInfo(e) {
 					(in data Units = ${tile.data} ${layer.state.units})<br>
 					(time:${time})<br>
 					(instance:${layer.state.instance})<br>
-					(tileCoords:${tile.tile.coords.x},${tile.tile.coords.y},zoom:${tile.tile.coords.z})<br>
 					(tilePoint:${tile.tilePoint.x},${tile.tilePoint.y})<br>
 				</div>`
 				: '';
+			// (tileCoords:${tile.tile.coords.x},${tile.tile.coords.y},zoom:${tile.tile.coords.z})<br>
 		}
 	});
 
@@ -355,12 +350,26 @@ function popupInfo(e) {
 		.openOn(map);
 }
 
-function createControl(opt) {
+function createControl(opt: L.ControlOptions & { htmlID: string }): L.Control {
 	return new (L.Control.extend({
 		onAdd() {
 			return document.getElementById(opt.htmlID);
 		},
 	}))(opt);
+}
+
+interface BaseLayerOptions {
+	name: string;
+	URL: string;
+	options?: L.TileLayerOptions;
+	add?: boolean;
+}
+interface Config {
+	dataServer: string;
+	ext: 'webp' | 'png';
+	map?: L.MapOptions;
+	baseLayers?: BaseLayerOptions[];
+	varToStyleMap?: [string, string][];
 }
 
 async function start() {
@@ -369,6 +378,8 @@ async function start() {
 		config = await fetchJson('props/config.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
+		alert('No props/config.json');
+		return;
 	}
 
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
@@ -377,10 +388,11 @@ async function start() {
 	// Setup WxTiles lib
 	WxTilesLogging(true); // use wxtiles logging -> console.log
 	CreateWxTilesWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
-	layerControl = L.control.layers(null, null, { position: 'topright', autoZIndex: false, collapsed: false }).addTo(map);
-	config.baseLayers.map((baseLayer) => {
+	layerControl = L.control.layers(undefined, undefined, { position: 'topright', autoZIndex: false, collapsed: false }).addTo(map);
+	config.baseLayers?.map((baseLayer) => {
+		if (!baseLayer.add) return;
 		const layer = L.tileLayer(baseLayer.URL, baseLayer.options);
-		baseLayer.options.zIndex === 0 ? layerControl.addBaseLayer(layer, baseLayer.name) : layerControl.addOverlay(layer, baseLayer.name);
+		baseLayer.options?.zIndex === 0 ? layerControl.addBaseLayer(layer, baseLayer.name) : layerControl.addOverlay(layer, baseLayer.name);
 	});
 	layerControl.addOverlay(CreateWxDebugCoordsLayer(), 'tile boundaries');
 	layerControl.addBaseLayer(L.tileLayer('').addTo(map), 'base-empty');
@@ -390,18 +402,20 @@ async function start() {
 	createControl({ position: 'topleft', htmlID: 'styleEditor' }).addTo(map);
 	createControl({ position: 'bottomleft', htmlID: 'infoPanel' }).addTo(map);
 
-	const wxlibCustomSettings = {};
+	const wxlibCustomSettings: any = {};
 	try {
 		// these URIs are for the demo purpose. set the correct URI
 		wxlibCustomSettings.colorStyles = await fetchJson('props/styles.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
+
 	try {
 		wxlibCustomSettings.units = await fetchJson('props/uconv.json'); // set the correct URI
 	} catch (e) {
 		console.log(e);
 	}
+
 	try {
 		wxlibCustomSettings.colorSchemes = await fetchJson('props/colorschemes.json'); // set the correct URI
 	} catch (e) {
@@ -413,15 +427,7 @@ async function start() {
 	await document.fonts.ready; // !!! IMPORTANT: make sure fonts (barbs, arrows, etc) are loaded
 	await LoadQTree(config.dataServer + 'seamask.qtree');
 
-	// WxDebugCoordsLayer().addTo(map);
-
 	styles = WxGetColorStyles(); // all available styles. Not every style is sutable for this layer.
-
-	// {
-	// 	const sorted = JSONsort(styles);
-	// 	const str = JSON.stringify(sorted);
-	// 	console.dir(str);
-	// }
 
 	fillDataSets();
 
@@ -430,30 +436,28 @@ async function start() {
 	map.on('click', popupInfo);
 }
 
-const selectDataSetEl = document.getElementById('selectDataSet');
-selectDataSetEl.onchange = () => {
+const selectDataSetEl = document.getElementById('selectDataSet') as HTMLSelectElement;
+selectDataSetEl.addEventListener('change', () => {
 	fillVariables_selectDataSetEl_onchange();
-};
+});
 
-const selectVariableEl = document.getElementById('selectVariable');
-selectVariableEl.onchange = loadVariable_selectVariableEl_onchange;
+const selectVariableEl = document.getElementById('selectVariable') as HTMLSelectElement;
+selectVariableEl.addEventListener('change', loadVariable_selectVariableEl_onchange);
 
-const selectStyleEl = document.getElementById('selectStyle');
-selectStyleEl.onchange = onStyleChange_selectStyleEl_onchange;
+const selectStyleEl = document.getElementById('selectStyle') as HTMLSelectElement;
+selectStyleEl.addEventListener('change', onStyleChange_selectStyleEl_onchange);
 
-const legendCanvasEl = document.getElementById('legend');
+const legendCanvasEl = document.getElementById('legend') as HTMLCanvasElement;
 
-const customStyleEl = document.getElementById('customStyle');
-customStyleEl.toggled = true;
-customStyleEl.onchange = function () {
+const customStyleEl = document.getElementById('customStyle') as HTMLTextAreaElement;
+customStyleEl.addEventListener('change', () => {
 	selectStyleEl.value = 'custom';
 	onStyleChange_selectStyleEl_onchange();
-};
+});
 
-const customStyleButtonEl = document.getElementById('customStyleButton');
-customStyleButtonEl.innerHTML = 'show Custom Style Editor';
-customStyleButtonEl.onclick = () => {
-	if (customStyleEl.toggled) {
+const customStyleButtonEl = document.getElementById('customStyleButton')! as HTMLButtonElement;
+customStyleButtonEl.addEventListener('click', () => {
+	if (customStyleEl.style.display != 'none') {
 		customStyleEl.style.display = 'none';
 		customStyleButtonEl.innerHTML = 'show Custom Style Editor';
 	} else {
@@ -461,17 +465,18 @@ customStyleButtonEl.onclick = () => {
 		customStyleButtonEl.innerHTML = 'update Custom Style & Hide';
 		selectStyleEl.value = 'custom';
 	}
-	customStyleEl.toggled = !customStyleEl.toggled;
-};
-customStyleButtonEl.click();
+});
 
-const selectTimeEl = document.getElementById('selectTime');
-selectTimeEl.onchange = setTime_selectTimeEl_onchange;
+const selectTimeEl = document.getElementById('selectTime') as HTMLSelectElement;
+selectTimeEl.addEventListener('change', () => {
+	if (!globalLayer) return;
+	if (buttonPlayStopEl.textContent === 'stop') stopPlay();
+	globalLayer.setTime(selectTimeEl.value);
+	selectTimeEl.value = globalLayer.getTime();
+});
 
-const infoPanelEl = document.getElementById('infoPanel');
-
-const buttonHoldEl = document.getElementById('buttonHold');
-buttonHoldEl.onclick = () => {
+const buttonHoldEl = document.getElementById('buttonHold') as HTMLButtonElement;
+buttonHoldEl.addEventListener('click', () => {
 	L.popup()
 		.setLatLng(map.getCenter())
 		.setContent(
@@ -484,24 +489,25 @@ buttonHoldEl.onclick = () => {
 		)
 		.openOn(map);
 	stopPlay();
-	layer = undefined;
-};
+	globalLayer = undefined;
+});
 
-const clearEl = document.getElementById('buttonClear');
-clearEl.onclick = () => {
+const infoPanelEl = document.getElementById('infoPanel') as HTMLDivElement;
+const inputAnimDelayEl = document.getElementById('animDelay') as HTMLInputElement;
+const inputCoarseLevelEl = document.getElementById('coarseLevel') as HTMLInputElement;
+const buttonPlayStopEl = document.getElementById('buttonPlayStop') as HTMLButtonElement;
+buttonPlayStopEl.addEventListener('click', () => {
+	buttonPlayStopEl.textContent === 'play' ? startPlay() : stopPlay();
+});
+const clearEl = document.getElementById('buttonClear')!;
+clearEl.addEventListener('click', () => {
 	map.eachLayer((l) => {
-		if (l.getTile) {
+		if ('getTile' in l) {
 			l.removeFrom(map);
-			l.removeFrom(layerControl);
+			layerControl.removeLayer(l);
 		}
 	});
 	loadVariable_selectVariableEl_onchange();
-};
-
-const buttonPlayStopEl = document.getElementById('buttonPlayStop');
-buttonPlayStopEl.onclick = startStopPlay;
-
-const inputAnimDelayEl = document.getElementById('animDelay');
-const inputCoarseLevelEl = document.getElementById('coarseLevel');
+});
 
 start();

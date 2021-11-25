@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 	<head>
-		<title>WxTiles v2.0</title>
+		<title>WxTiles Leaflet Demo</title>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<link rel="shortcut icon" href="res/icon.png" type="image/x-icon" />
@@ -12,30 +12,26 @@
 				margin: 0;
 			}
 		</style>
-
 		<!-- LEAFLET lib goes first -->
+		<!--  Leaflet is built in in this Demo
 		<link
 			rel="stylesheet"
 			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
 			integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
 			crossorigin=""
 		/>
-
 		<script
 			src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
 			integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
 			crossorigin=""
-		></script>
+		></script> -->
 
-		<!-- WxTiles lib goes here -->
-		<link rel="stylesheet" href="./wxtiles/wxtiles.css" />
-		<script src="./wxtiles/wxtiles.js"></script>
-
-		<!-- index.js -->
-		<script defer src="index.js"></script>
+		<!-- script -->
+		<link rel="stylesheet" href="script/script.css" />
+		<script defer src="script/script.js"></script>
 	</head>
 
-	<body>
+	<body class="fill-window">
 		<div id="map" style="height: 100%"></div>
 		<div id="layerPanel" ondblclick="event.stopPropagation();">
 			<div style="border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)" onclick="event.stopPropagation();">
@@ -70,8 +66,8 @@
 				onmousedown="event.stopPropagation();"
 				onmousemove="event.stopPropagation();"
 			>
-				<button id="customStyleButton" style="height: 1.5em; background-color: gray">show custom style</button>
-				<textarea id="customStyle" style="width: 50vw; height: 50vh"></textarea>
+				<button id="customStyleButton" style="height: 1.5em; background-color: gray">show Custom Style Editor</button>
+				<textarea id="customStyle" style="display: none; width: 50vw; height: 50vh"></textarea>
 			</div>
 		</div>
 		<div id="infoPanel" style="width: 30em; border-color: black; border-style: solid; border-width: 2px; background-color: rgba(135, 206, 250, 0.8)"></div>

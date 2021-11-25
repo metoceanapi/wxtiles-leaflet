@@ -7,8 +7,11 @@ import L from 'leaflet';
 import { WXLOG } from './wxtools';
 import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
-export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, ColorStylesWeakMixed, Units, ColorSchemes, LibSetupObject } from './wxtools';
-export { WxTilesLayer, WxTilesLayerSettings, DataSource } from './tilesLayer';
+export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles } from './wxtools';
+export type { ColorStylesWeakMixed, ColorStyleStrict, ColorStylesStrict, Units, ColorSchemes, LibSetupObject } from './wxtools';
+export type { WxTilesLayerSettings, DataSource, Meta, WxTileInfo } from './tilesLayer';
+export { WxTilesLayer } from './tilesLayer';
+export type { Legend } from './RawCLUT';
 export { LoadQTree } from './qtree';
 
 export function CreateWxTilesLayer(settings: WxTilesLayerSettings): WxTilesLayer {

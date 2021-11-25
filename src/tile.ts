@@ -187,7 +187,7 @@ function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPi
 }
 
 export interface TileEl extends HTMLElement {
-	wxtile?: WxTile;
+	wxtile: WxTile;
 }
 
 export interface TileCreateParams {
@@ -204,19 +204,12 @@ function makeBox(coords: Coords): BoundaryMeta {
 }
 
 export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
-	const tileEl: TileEl = createEl('div', 'leaflet-tile s-tile');
-
-	if (!layer.error) {
-		tileEl.wxtile = new WxTile({ layer, coords, tileEl });
-		tileEl.wxtile.load().then((wxtile) => {
-			wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
-			done(); // done is used after create (to appear on map), not after reload (it is on the map already).
-		});
-	} else {
-		// the layer hasn't been initilized yet, nothing to do.
-		// this happens due to lazy setup. layer.reload() is fired when ready and recreates all tiles.
-		setTimeout(done);
-	}
+	const tileEl = <TileEl>createEl('div', 'leaflet-tile s-tile');
+	tileEl.wxtile = new WxTile({ layer, coords, tileEl });
+	tileEl.wxtile.load().then((wxtile) => {
+		wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
+		done(); // done is used after create (to appear on map), not after reload (it is on the map already).
+	});
 
 	return tileEl;
 }
@@ -230,6 +223,7 @@ type SLine = SLinePoint[];
 
 export class WxTile {
 	coords: Coords;
+	data: DataPicture[] = [];
 
 	protected layer: WxTilesLayer;
 	protected canvasFill: HTMLCanvasElement;
@@ -238,11 +232,10 @@ export class WxTile {
 	protected canvasFillCtx: CanvasRenderingContext2D;
 	protected canvasSlinesCtx: CanvasRenderingContext2D;
 	protected canvasVectorCtx: CanvasRenderingContext2D;
-	protected data: DataPicture[] = [];
 	protected sLines: SLine[] = [];
-	protected imData: ImageData | null = null;
+	protected imData: ImageData;
 
-	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: TileEl }) {
+	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: HTMLElement }) {
 		this.coords = coords;
 		this.layer = layer;
 
@@ -259,6 +252,7 @@ export class WxTile {
 			return ctx;
 		}
 		this.canvasFillCtx = getCtx(this.canvasFill);
+		this.imData = this.canvasFillCtx.createImageData(256, 256);
 		this.canvasSlinesCtx = getCtx(this.canvasSlines);
 		this.canvasVectorCtx = this.canvasFillCtx;
 	}
@@ -325,10 +319,9 @@ export class WxTile {
 	} // getData
 
 	async load(): Promise<WxTile> {
-		// clean data up on load start
-		this.data = [];
-		this.imData = null;
-		this.sLines = [];
+		// // clean data up on load start
+		// this.data = [];
+		// this.sLines = [];
 
 		const { coords, layer } = this;
 		const { boundaries } = layer.state.meta;
@@ -343,6 +336,8 @@ export class WxTile {
 			tileType = QTreeCheckCoord(coords); // check 'type' of a tile
 			if (maskType === tileType) {
 				// whole this tile is cut by the mask -> nothing to load and process
+				this.data = [];
+				this.sLines = [];
 				return this;
 			}
 		}
@@ -351,6 +346,8 @@ export class WxTile {
 			const bbox = makeBox(coords);
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
 			if (!boundaries.boundaries180.some(rectIntersect)) {
+				this.data = [];
+				this.sLines = [];
 				return this; // empty tile
 			}
 		}
@@ -366,7 +363,6 @@ export class WxTile {
 
 		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
 		this.data = data.map((d) => interpolator(blurData(d, this.layer.style.blurRadius), subCoords)); // preprocess all loaded data
-		this.imData = this.canvasFillCtx.createImageData(256, 256);
 
 		if (this.layer.vector) {
 			this._vectorPrepare();
@@ -427,7 +423,6 @@ export class WxTile {
 
 	protected _drawFillAndIsolines(): void {
 		const { imData } = this;
-		if (!imData) throw '_drawFillAndIsolines: !imData';
 
 		const { canvasFillCtx } = this;
 		// canvasFillCtx.clearRect(0, 0, 256, 256); // transfered to this.draw

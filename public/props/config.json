@@ -5,7 +5,7 @@
 	"ext": "png",
 	"map": {
 		"center": [-37.803113, 174.878166],
-		"zoom": 5,
+		"zoom": 3,
 		"zoomControl": false
 	},
 	"baseLayers": [
@@ -18,7 +18,7 @@
 				"minZoom": 0,
 				"tms": false
 			},
-			"add": false
+			"add": true
 		},
 		{
 			"name": "land outlines",
@@ -38,7 +38,7 @@
 				"maxZoom": 18,
 				"minZoom": 0
 			},
-			"add": false
+			"add": true
 		},
 		{
 			"name": "base-bathy",
