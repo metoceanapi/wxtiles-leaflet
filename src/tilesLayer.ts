@@ -322,7 +322,7 @@ export class WxTilesLayer extends L.GridLayer {
 		reloadPromice.then(() => {
 			const _tiles = Object.values(this._tiles);
 			for (const _tile of _tiles) {
-				const wxtile = (<TileEl>_tile?.el).wxtile;
+				const wxtile = (<TileEl>_tile.el)?.wxtile;
 				if (wxtile?.data.length) {
 					// the first non empty tile
 					const [cmin, cmax] = this.state.minmax[0];
