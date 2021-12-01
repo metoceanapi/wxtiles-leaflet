@@ -111,7 +111,6 @@ export class WxTilesLayer extends L.GridLayer {
 
 	animation: boolean = false;
 
-	protected lastBaseURL: string = '';
 	protected animationRedrawID: number = 0;
 	protected animFrame: number = 0;
 	protected oldMaxZoom: number = 0;
@@ -420,7 +419,6 @@ export class WxTilesLayer extends L.GridLayer {
 		WXLOG('unsetTimeAnimationMode');
 		if (this.oldMaxZoom) {
 			this.state.meta.maxZoom = this.oldMaxZoom;
-			this.lastBaseURL = ''; // force reload
 		}
 
 		return this._reloadTiles();
@@ -575,15 +573,10 @@ export class WxTilesLayer extends L.GridLayer {
 
 	protected _reloadTiles(redraw: boolean = true): Promise<WxTile[]> {
 		WXLOG('_reloadTiles: start - ' + this.dataSource.name);
-		if (this.lastBaseURL === this.state.baseURL) {
-			WXLOG('_reloadTiles: same URL. Nothing to reload');
-			return Promise.resolve([]);
-		}
 
 		this.loadData.controllerHolder.controller.abort();
 		this.loadData.controllerHolder.controller = new AbortController();
 
-		this.lastBaseURL = this.state.baseURL;
 		const promises = this._ForEachTile((wxtile) => wxtile.load());
 		const reloadedPromice = Promise.all(promises);
 		const { controller } = this.loadData.controllerHolder; // save current controller ...
