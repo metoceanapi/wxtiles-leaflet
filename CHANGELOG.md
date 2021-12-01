@@ -9,6 +9,8 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.0.12] - 2021-12-01
+
 ### REVERT
 
 - lastBaseURL (remowed as useless)
