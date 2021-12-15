@@ -1,4 +1,4 @@
-import { HEXtoRGBA, RGBtoHEX, makeConverter, getColorSchemes, mixColor, createLevels } from './wxtools';
+import { HEXtoRGBA, RGBtoHEX, makeConverter, WxGetColorSchemes, mixColor, createLevels } from './wxtools';
 import { Converter, ColorStyleStrict } from './wxtools';
 // import type { Converter } from './wxtools';
 
@@ -46,7 +46,7 @@ export class RawCLUT {
 			style.levels.sort((a: number, b: number) => (a < b ? -1 : a > b ? 1 : 0));
 
 			if (!style.colors) {
-				const colorSchemes = getColorSchemes();
+				const colorSchemes = WxGetColorSchemes();
 				// try to use colors array first. if nothig here create it from a scheme
 				if (style.colorScheme && style.colorScheme in colorSchemes) {
 					style.colors = colorSchemes[style.colorScheme];

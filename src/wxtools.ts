@@ -103,7 +103,7 @@ export function WxGetColorStyles(): ColorStylesStrict {
 	return _colorStylesUnrolled;
 }
 
-export function getColorSchemes(): ColorSchemes {
+export function WxGetColorSchemes(): ColorSchemes {
 	return _colorSchemes;
 }
 
