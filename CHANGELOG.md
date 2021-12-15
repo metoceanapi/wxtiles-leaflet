@@ -9,6 +9,10 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### FIX
+
+- text on isolines
+
 ## [1.0.13] - 2021-12-15
 
 ### ADD

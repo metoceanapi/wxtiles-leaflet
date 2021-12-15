@@ -491,7 +491,7 @@ export class WxTile {
 		canvasFillCtx.putImageData(imData, 0, 0);
 
 		// drawing Info
-		if (!info.length) {
+		if (info.length) {
 			canvasFillCtx.font = '1.1em Sans-serif';
 			canvasFillCtx.lineWidth = 2;
 			canvasFillCtx.strokeStyle = 'white'; // RGBtoHEX(p.c); // alfa = 255
