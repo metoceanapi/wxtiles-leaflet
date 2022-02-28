@@ -1,4 +1,4 @@
-import { ColorStylesStrict } from '../wxtools';
+import { ColorStylesStrict } from '../utils/wxtools';
 
 export const __colorStyles_default_preset: ColorStylesStrict = {
 	base: {
@@ -9,6 +9,7 @@ export const __colorStyles_default_preset: ColorStylesStrict = {
 		isolineText: true,
 		vectorType: 'arrows',
 		vectorColor: 'inverted',
+		vectorFactor: 1,
 		streamLineColor: '#777',
 		streamLineSpeedFactor: 1,
 		streamLineStatic: false,
@@ -32,6 +33,7 @@ export const __colorStyles_default_preset: ColorStylesStrict = {
 		isolineText: true,
 		vectorType: 'arrows',
 		vectorColor: 'inverted',
+		vectorFactor: 1,
 		streamLineColor: '#777',
 		streamLineSpeedFactor: 1,
 		streamLineStatic: false,

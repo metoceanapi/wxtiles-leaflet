@@ -1,4 +1,8 @@
-import { Coords } from './tile';
+export interface Coords {
+	z: number;
+	x: number;
+	y: number;
+}
 
 type QTreeN = QTree | null;
 type QTSub = [QTreeN, QTreeN, QTreeN, QTreeN] | null;

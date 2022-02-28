@@ -1,6 +1,6 @@
-import { __units_default_preset } from './defaults/uconv';
-import { __colorSchemes_default_preset } from './defaults/colorschemes';
-import { __colorStyles_default_preset } from './defaults/styles';
+import { __units_default_preset } from '../defaults/uconv';
+import { __colorSchemes_default_preset } from '../defaults/colorschemes';
+import { __colorStyles_default_preset } from '../defaults/styles';
 
 export type UnitTuple = [string, number, number?];
 
@@ -22,6 +22,7 @@ export interface ColorStyleWeak {
 	isolineText?: boolean;
 	vectorType?: string;
 	vectorColor?: string;
+	vectorFactor?: number;
 	streamLineColor?: string;
 	streamLineSpeedFactor?: number;
 	streamLineStatic?: boolean;
@@ -36,11 +37,13 @@ export interface ColorStyleWeak {
 	units?: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
 	mask?: string;
+
 }
 
 export interface ColorStylesWeakMixed {
 	[name: string]: ColorStyleWeak | ColorStyleWeak[];
 }
+
 export interface ColorStylesIncomplete {
 	[name: string]: ColorStyleWeak;
 }
@@ -53,6 +56,7 @@ export interface ColorStyleStrict {
 	isolineText: boolean;
 	vectorType: string;
 	vectorColor: string;
+	vectorFactor: number;
 	streamLineColor: string;
 	streamLineSpeedFactor: number;
 	streamLineStatic: boolean;
@@ -249,8 +253,8 @@ function imageToData(image: HTMLImageElement): ImageData {
 	return context.getImageData(0, 0, width, height);
 }
 
-export async function loadImageData(url: string, controllerHolder: AbortControllerHolder): Promise<ImageData> {
-	return imageToData(await loadImage(url, controllerHolder));
+export function loadImageData(url: string, controllerHolder: AbortControllerHolder): Promise<ImageData> {
+	return loadImage(url, controllerHolder).then(imageToData);
 }
 
 // http://webpjs.appspot.com/ = webp lossless decoder

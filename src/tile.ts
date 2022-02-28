@@ -1,8 +1,8 @@
-import { blurData, RGBtoHEX, HEXtoRGBA, createEl, WXLOG } from './wxtools';
-import { DataPicture, DataIntegral } from './wxtools';
-import { coordToPixel, PixelsToLonLat } from './mercator';
+import { blurData, RGBtoHEX, HEXtoRGBA, createEl, WXLOG } from './utils/wxtools';
+import { DataPicture, DataIntegral } from './utils/wxtools';
+import { coordToPixel, PixelsToLonLat } from './utils/mercator';
 import { BoundaryMeta, WxTilesLayer } from './tilesLayer';
-import { QTreeCheckCoord, TileType } from './qtree';
+import { QTreeCheckCoord, TileType } from './utils/qtree';
 
 export interface Coords {
 	z: number;
@@ -535,15 +535,16 @@ export class WxTile {
 	}
 
 	protected _drawVector(): void {
-		if (!this.layer.vector || !this.layer.clut.DataToKnots) return;
-		if (!this.layer.style.vectorColor || this.layer.style.vectorColor === 'none') return;
-		if (!this.layer.style.vectorType || this.layer.style.vectorType === 'none') return;
+		const { clut, style } = this.layer;
+		if (!this.layer.vector || !clut.DataToKnots) return;
+		if (!style.vectorColor || style.vectorColor === 'none') return;
+		if (!style.vectorType || style.vectorType === 'none') return;
 		if (this.data.length !== 3) throw 'this.data.length !== 3';
 		const [l, u, v] = this.data;
 
 		const { canvasVectorCtx } = this;
 
-		switch (this.layer.style.vectorType) {
+		switch (style.vectorType) {
 			case 'barbs':
 				canvasVectorCtx.font = '40px barbs';
 				break;
@@ -551,15 +552,14 @@ export class WxTile {
 				canvasVectorCtx.font = '50px arrows';
 				break;
 			default:
-				canvasVectorCtx.font = this.layer.style.vectorType;
+				canvasVectorCtx.font = style.vectorType;
 		}
 
 		canvasVectorCtx.textAlign = 'center';
 		canvasVectorCtx.textBaseline = 'middle';
 
-		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
+		const addDegrees = style.addDegrees ? 0.017453292519943 * style.addDegrees : 0;
 
-		// const zdif = Math.max(this.coords.z - this.layer.dataSource.meta.maxZoom, 0);
 		const gridStep = 32; //Math.min(2 ** (zdif + 5), 128);
 		for (let y = gridStep / 2; y < 256; y += gridStep) {
 			for (let x = gridStep / 2; x < 256; x += gridStep) {
@@ -568,19 +568,18 @@ export class WxTile {
 
 				const ang = Math.atan2(u.dmin + u.raw[di] * u.dmul, v.dmin + v.raw[di] * v.dmul);
 				const vecLen = l.dmin + l.raw[di] * l.dmul;
-
-				const sm = this.layer.dataSource.variables[0].includes('current') ? 5 : 0.2; // arrows are longer for currents than wind
-				const vecCode = Math.min(this.layer.clut.DataToKnots(vecLen) * sm, 25 /* to fit .ttf */) + 65; /* A */
+				const sm = style.vectorType !== 'barbs' ? style.vectorFactor * 0.2 : 0.2; /*0.2 to fit font*/
+				const vecCode = Math.min(clut.DataToKnots(vecLen) * sm, 25 /* to fit .ttf */) + 65; /* A */
 				const vecChar = String.fromCharCode(vecCode);
-				switch (this.layer.style.vectorColor) {
+				switch (style.vectorColor) {
 					case 'inverted':
-						canvasVectorCtx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(~clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					case 'fill':
-						canvasVectorCtx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						canvasVectorCtx.fillStyle = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					default:
-						canvasVectorCtx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
+						canvasVectorCtx.fillStyle = style.vectorColor; // put color directly from vectorColor
 						break;
 				} // switch isoline_style
 

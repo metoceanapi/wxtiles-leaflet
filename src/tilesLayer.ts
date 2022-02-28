@@ -3,7 +3,7 @@
 
 import L from 'leaflet';
 
-import { RawCLUT, createLegend, Legend } from './RawCLUT';
+import { RawCLUT, createLegend, Legend } from './utils/RawCLUT';
 import { TileCreate, TileEl, WxTile } from './tile';
 import {
 	loadDataPictureCachedAbortable,
@@ -18,7 +18,7 @@ import {
 	getClosestTimeString,
 	DataIntegral,
 	loadImageDataCachedAbortable,
-} from './wxtools';
+} from './utils/wxtools';
 
 export interface VariableMeta {
 	[name: string]: {

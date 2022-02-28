@@ -4,15 +4,15 @@ import './wxtiles.css';
 
 import L from 'leaflet';
 
-import { WXLOG } from './wxtools';
+import { WXLOG } from './utils/wxtools';
 import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
-export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, WxGetColorSchemes } from './wxtools';
-export type { ColorStylesWeakMixed, ColorStyleStrict, ColorStylesStrict, Units, ColorSchemes, LibSetupObject } from './wxtools';
+export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, WxGetColorSchemes } from './utils/wxtools';
+export type { ColorStylesWeakMixed, ColorStyleStrict, ColorStylesStrict, Units, ColorSchemes, LibSetupObject } from './utils/wxtools';
 export type { WxTilesLayerSettings, DataSource, Meta, WxTileInfo } from './tilesLayer';
 export { WxTilesLayer } from './tilesLayer';
-export type { Legend } from './RawCLUT';
-export { LoadQTree } from './qtree';
+export type { Legend } from './utils/RawCLUT';
+export { LoadQTree } from './utils/qtree';
 
 export function CreateWxTilesLayer(settings: WxTilesLayerSettings): WxTilesLayer {
 	return new WxTilesLayer(settings);

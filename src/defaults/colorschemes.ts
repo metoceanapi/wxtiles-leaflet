@@ -1,4 +1,4 @@
-import { ColorSchemes } from '../wxtools';
+import { ColorSchemes } from '../utils/wxtools';
 export const __colorSchemes_default_preset: ColorSchemes = {
 	none: ['#00000000', '#00000000'],
 	rainbow: ['#ff0000ff', '#ffff00ff', '#00ff00ff', '#00ffffff', '#0000ffff', '#ff00ffff'],
