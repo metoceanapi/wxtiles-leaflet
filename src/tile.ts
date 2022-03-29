@@ -10,110 +10,113 @@ export interface Coords {
 	y: number;
 }
 
-function subDataDegree(data: DataPicture, subCoords?: Coords): DataPicture {
-	if (!subCoords) return data;
-	const s = 0.9999999 / Math.pow(2, subCoords.z); // a subsize of a tile // 0.99999 - a dirty trick to never cross the bottom and rigth edges of the original tile.
-	const sx = subCoords.x * 256 * s; // upper left point of a subtile
-	const sy = subCoords.y * 256 * s;
-	const subData: DataPicture = { raw: new Uint16Array(258 * 258), dmin: data.dmin, dmax: data.dmax, dmul: data.dmul };
-	const { raw } = subData;
-	for (let y = -1, i = 0; y <= 256; y++) {
-		const dy = sy + y * s; // `y` projection of the subtile onto the original tile
-		const dyi = Math.floor(dy); // don't use ~~ because of negatives on left and upper borders
-		const dyt = dy - dyi; // [0, 1] - `y` interpolation coeff
-		for (let x = -1; x <= 256; x++, i++) {
-			const dx = sx + x * s;
-			const dxi = Math.floor(dx); // don't use ~~ because of negatives
-			const dxt = dx - dxi;
-			const di = dxi + 1 + (dyi + 1) * 258; // data index
-			// interpolation inside a rectangular
-			// a----b
-			// |    |
-			// |    |
-			// c----d
-			// interpolation inside a rectangular
-			let a = data.raw[di]; // upper left corner
-			let b = data.raw[di + 1]; // upper right
-			let c = data.raw[di + 258]; // lower left
-			let d = data.raw[di + 258 + 1]; // lower right
-
-			// 16 possible variants for a,b,c,d != 0 ( != NaN)
-			const sq = (a ? 1 : 0) | (b ? 2 : 0) | (c ? 4 : 0) | (d ? 8 : 0);
-			switch (sq) {
-				case 0b0000:
-					raw[i] = 0; // NaN
-					continue;
-				case 0b0001: // only a != NaN
-					raw[i] = a;
-					continue;
-				case 0b0010: // only b != NaN
-					raw[i] = b;
-					continue;
-				case 0b0011: // a, b != NaN
-					c = a;
-					d = b;
-					break;
-				case 0b0100: // ... etc
-					raw[i] = c;
-					continue;
-				case 0b0101:
-					b = a;
-					d = c;
-					break;
-				case 0b0110:
-					d = (b + c) >> 1;
-					a = d;
-					break;
-				case 0b0111:
-					d = (b + c) >> 1;
-					break;
-				case 0b1000:
-					raw[i] = d;
-					continue;
-				case 0b1001:
-					b = (a + d) >> 1;
-					c = b;
-					break;
-				case 0b1010:
-					a = b;
-					c = d;
-					break;
-				case 0b1011:
-					c = (a + d) >> 1;
-					break;
-				case 0b1100:
-					a = c;
-					b = d;
-					break;
-				case 0b1101:
-					b = (a + d) >> 1;
-					break;
-				case 0b1110:
-					a = (b + c) >> 1;
-					break;
-			}
-
-			a = data.dmin + data.dmul * a;
-			b = data.dmin + data.dmul * b;
-			c = data.dmin + data.dmul * c;
-			d = data.dmin + data.dmul * d;
-
-			// 2) bilinear
-			const u = linearInterpDegree(a, b, dxt); // upper line
-			const l = linearInterpDegree(c, d, dxt); // lower line
-			raw[i] = (linearInterpDegree(u, l, dyt) - data.dmin) / data.dmul;
-			if (raw[i] === 0) raw[i] = 1; // 0 is NaN, we don't need NaN here!
-		} // for x
-	} // for y
-	return subData;
-}
-
-function linearInterpDegree(start: number, end: number, amount: number): number {
+function interpolatorDegreeLinear(start: number, end: number, amount: number): number {
 	const shortestAngle = ((((end - start) % 360) + 540) % 360) - 180;
 	return (start + shortestAngle * amount + 360) % 360;
 }
 
-function subData(data: DataPicture, subCoords?: Coords): DataPicture {
+type InterpolatorSquare = (a: number, b: number, c: number, d: number, dxt: number, dyt: number, dmin: number, dmul: number) => number;
+
+function interpolatorSquareDegree(a: number, b: number, c: number, d: number, dxt: number, dyt: number, dmin: number, dmul: number): number {
+	// a----b
+	// |    |
+	// |    |
+	// c----d
+
+	// 16 possible variants for a,b,c,d != 0 ( != NaN)
+	const sq = (a ? 1 : 0) | (b ? 2 : 0) | (c ? 4 : 0) | (d ? 8 : 0);
+	switch (sq) {
+		case 0b0000:
+			return 0; // NaN
+		case 0b0001: // only a != NaN
+			return a;
+		case 0b0010: // only b != NaN
+			return b;
+		case 0b0011: // a, b != NaN
+			c = a;
+			d = b;
+			break;
+		case 0b0100: // ... etc
+			return c;
+		case 0b0101:
+			b = a;
+			d = c;
+			break;
+		case 0b0110:
+			d = (b + c) >> 1;
+			a = d;
+			break;
+		case 0b0111:
+			d = (b + c) >> 1;
+			break;
+		case 0b1000:
+			return d;
+		case 0b1001:
+			b = (a + d) >> 1;
+			c = b;
+			break;
+		case 0b1010:
+			a = b;
+			c = d;
+			break;
+		case 0b1011:
+			c = (a + d) >> 1;
+			break;
+		case 0b1100:
+			a = c;
+			b = d;
+			break;
+		case 0b1101:
+			b = (a + d) >> 1;
+			break;
+		case 0b1110:
+			a = (b + c) >> 1;
+			break;
+	}
+
+	// decode Data
+	a = dmin + dmul * a;
+	b = dmin + dmul * b;
+	c = dmin + dmul * c;
+	d = dmin + dmul * d;
+
+	// 2) bilinear
+	const u = interpolatorDegreeLinear(a, b, dxt); // upper line
+	const l = interpolatorDegreeLinear(c, d, dxt); // lower line
+	// Encode Data back before returning
+	return (interpolatorDegreeLinear(u, l, dyt) - dmin) / dmul || 1; // 0 is NaN, we don't need NaN here!
+}
+
+function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: number, dyt: number, dmin: number, dmul: number): number {
+	// 0       1
+	//  a --- b   default version            a --- b    flipped version
+	//  |   / |                              | \   |
+	//  | / x | - pyt                        |   \ |
+	//  c --- d                              c --- d
+	// 2    |  3
+	//     pxt
+	//
+	// x - point to interpolate
+	// a, b, c, d - corners of the square
+	// 16 possible variants for a,b,c,d != 0 ( != NaN)
+	const sq = (a ? 1 : 0) | (b ? 2 : 0) | (c ? 4 : 0) | (d ? 8 : 0);
+	switch (sq) {
+		case 0b0111: // -cba   -default version
+			return dxt + dyt < 1 ? dxt * (b - a) + dyt * (c - a) + a : 0;
+		case 0b1110: // dcb-   -default version
+			return dxt + dyt < 1 ? 0 : dxt * (d - c) + dyt * (d - b) + b + c - d;
+		case 0b1011: // d-ba   - flipped version
+			return dyt < dxt ? (1 - dxt) * (a - b) + dyt * (d - b) + b : 0;
+		case 0b1101: // dc-a   - flipped version
+			return dyt < dxt ? 0 : (1 - dxt) * (c - d) + dyt * (c - a) + a + d - c;
+		case 0b1111: // dcba   -default version
+			return dxt + dyt < 1 ? dxt * (b - a) + dyt * (c - a) + a : dxt * (d - c) + dyt * (d - b) + b + c - d;
+		default:
+			return 0;
+	}
+}
+
+function subDataPicture(interpolator: InterpolatorSquare, data: DataPicture, subCoords?: Coords): DataPicture {
 	if (!subCoords) return data;
 	const s = 0.9999999 / Math.pow(2, subCoords.z); // a subsize of a tile // 0.99999 - a dirty trick to never cross the bottom and rigth edges of the original tile.
 	const sx = subCoords.x * 256 * s; // upper left point of a subtile
@@ -135,41 +138,18 @@ function subData(data: DataPicture, subCoords?: Coords): DataPicture {
 			const b = data.raw[di + 1]; // upper right
 			const c = data.raw[di + 258]; // lower left
 			const d = data.raw[di + 258 + 1]; // lower right
-
-			// 0       1
-			//  a --- b   default version            a --- b    flipped version
-			//  |   / |                              | \   |
-			//  | / x | - pyt                        |   \ |
-			//  c --- d                              c --- d
-			// 2    |  3
-			//     pxt
-			//
-			// x - point to interpolate
-
-			// 16 possible variants for a,b,c,d != 0 ( != NaN)
-			const sq = (a ? 1 : 0) | (b ? 2 : 0) | (c ? 4 : 0) | (d ? 8 : 0);
-			switch (sq) {
-				case 0b0111: // -cba   -default version
-					raw[i] = dxt + dyt < 1 ? dxt * (b - a) + dyt * (c - a) + a : 0;
-					continue;
-				case 0b1110: // dcb-   -default version
-					raw[i] = dxt + dyt < 1 ? 0 : dxt * (d - c) + dyt * (d - b) + b + c - d;
-					continue;
-				case 0b1011: // d-ba   - flipped version
-					raw[i] = dyt < dxt ? (1 - dxt) * (a - b) + dyt * (d - b) + b : 0;
-					continue;
-				case 0b1101: // dc-a   - flipped version
-					raw[i] = dyt < dxt ? 0 : (1 - dxt) * (c - d) + dyt * (c - a) + a + d - c;
-					continue;
-				case 0b1111: // dcba   -default version
-					raw[i] = dxt + dyt < 1 ? dxt * (b - a) + dyt * (c - a) + a : dxt * (d - c) + dyt * (d - b) + b + c - d;
-					continue;
-				default:
-					raw[i] = 0;
-			}
+			raw[i] = interpolator(a, b, c, d, dxt, dyt, data.dmin, data.dmul);
 		} // for x
 	} // for y
 	return subData;
+}
+
+function subData(data: DataPicture, subCoords?: Coords): DataPicture {
+	return subDataPicture(interpolatorSquare, data, subCoords);
+}
+
+function subDataDegree(data: DataPicture, subCoords?: Coords): DataPicture {
+	return subDataPicture(interpolatorSquareDegree, data, subCoords);
 }
 
 function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPicture {
@@ -230,10 +210,10 @@ export class WxTile {
 	protected canvasSlines: HTMLCanvasElement;
 	protected canvasVector: HTMLCanvasElement;
 	protected canvasFillCtx: CanvasRenderingContext2D;
-	protected canvasSlinesCtx: CanvasRenderingContext2D;
+	protected canvasVectorAnimationCtx: CanvasRenderingContext2D;
 	protected canvasVectorCtx: CanvasRenderingContext2D;
-	protected sLines: SLine[] = [];
-	protected imData: ImageData;
+	protected streamLines: SLine[] = [];
+	protected imageDataForFillCtx: ImageData;
 
 	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: HTMLElement }) {
 		this.coords = coords;
@@ -252,42 +232,42 @@ export class WxTile {
 			return ctx;
 		}
 		this.canvasFillCtx = getCtx(this.canvasFill);
-		this.imData = this.canvasFillCtx.createImageData(256, 256);
-		this.canvasSlinesCtx = getCtx(this.canvasSlines);
+		this.imageDataForFillCtx = this.canvasFillCtx.createImageData(256, 256);
+		this.canvasVectorAnimationCtx = getCtx(this.canvasSlines);
 		this.canvasVectorCtx = this.canvasFillCtx;
 	}
 
 	draw(): void {
 		this.canvasFillCtx.clearRect(0, 0, 256, 256); // In animation through time it can become empty
-		this.canvasSlinesCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
+		this.canvasVectorAnimationCtx.clearRect(0, 0, 256, 256); // so it needs to be cleared (fucg bug231)
 		if (!this.data.length) {
 			return;
 		}
 
 		this._drawFillAndIsolines();
-		this._drawVector();
-		this._drawDegree();
-		this._drawStaticSlines();
+		this._drawVectorsStatic();
+		this._drawDegreesStatic();
+		this._drawStreamLinesStatic();
 	} // draw
 
-	clearSLinesCanvas(): void {
-		this.canvasSlinesCtx.clearRect(0, 0, 256, 256);
-	} // clearSLinesCanvas
+	clearVectorAnimationCanvas(): void {
+		this.canvasVectorAnimationCtx.clearRect(0, 0, 256, 256);
+	} // clearVectorAnimationCanvas
 
-	drawSLines(timeStemp: number): void {
+	drawVectorAnimationLinesStep(timeStemp: number): void {
 		// 'timeStemp' is a time tick given by the browser's scheduller
-		if (this.sLines.length === 0) return;
+		if (this.streamLines.length === 0) return;
 
-		const ctx = this.canvasSlinesCtx; // .getContext('2d');
+		const ctx = this.canvasVectorAnimationCtx; // .getContext('2d');
 		ctx.clearRect(0, 0, 256, 256); // transfered to this.draw
 		if (this.layer.style.streamLineColor === 'none') {
-			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
+			this.streamLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
 		const baseColor = this.layer.style.streamLineColor.substr(0, 7);
 		timeStemp = timeStemp >> 7;
-		for (let i = 0; i < this.sLines.length; ++i) {
-			const sLine = this.sLines[i];
+		for (let i = 0; i < this.streamLines.length; ++i) {
+			const sLine = this.streamLines[i];
 			const sSize = sLine.length - 1;
 			// TODO:
 			// seed - is the most opaque piece
@@ -312,24 +292,18 @@ export class WxTile {
 	}
 
 	// x, y - pixel on tile
-	getData({ x, y }: { x: number; y: number }): { raw: number; data: number } | undefined {
+	getData({ x, y }: { x: number; y: number }): { raw: number[]; data: number[] } | undefined {
 		if (!this.data.length) return;
-		const raw = this.data[0].raw[(y + 1) * 258 + (x + 1)];
-		return { raw, data: this.data[0].dmin + this.data[0].dmul * raw };
+		return {
+			raw: this.data.map((data) => data.raw[(y + 1) * 258 + (x + 1)]),
+			data: this.data.map((data) => data.raw[(y + 1) * 258 + (x + 1)] * data.dmul + data.dmin),
+		};
 	} // getData
 
 	async load(): Promise<WxTile> {
-		// // clean data up on load start
-		// this.data = [];
-		// this.sLines = [];
-
 		const { coords, layer } = this;
 		const { boundaries } = layer.state.meta;
-
-		// const type = QTreeCheckCoord({ x: 0, y: 0, z: 3 });
-		// const type = QTreeCheckCoord({ x: 973, y: 766, z: 10 });
-
-		const maskType = this.layer.style.mask;
+		const maskType = layer.style.mask;
 		// should the mask be applied according to the current style?
 		var tileType: TileType | undefined;
 		if (maskType === 'land' || maskType === 'sea') {
@@ -337,7 +311,7 @@ export class WxTile {
 			if (maskType === tileType) {
 				// whole this tile is cut by the mask -> nothing to load and process
 				this.data = [];
-				this.sLines = [];
+				this.streamLines = [];
 				return this;
 			}
 		}
@@ -347,7 +321,7 @@ export class WxTile {
 			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
 			if (!boundaries.boundaries180.some(rectIntersect)) {
 				this.data = [];
-				this.sLines = [];
+				this.streamLines = [];
 				return this; // empty tile
 			}
 		}
@@ -356,24 +330,29 @@ export class WxTile {
 		const URLs = this._coordsToURLs(upCoords);
 		let data: DataIntegral[];
 		try {
-			data = await Promise.all(URLs.map(layer.loadData));
+			data = await Promise.all(URLs.map(layer.loadDataIntegralFunc));
 		} catch (e) {
-			return this; // empty tile
+			// abort loading. Leave the tile as it is. Else clear it.
+			if (e.code !== DOMException.ABORT_ERR) {
+				this.data = [];
+				this.streamLines = [];
+			}
+
+			return this;
 		}
 
 		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
-		this.data = data.map((d) => interpolator(blurData(d, this.layer.style.blurRadius), subCoords)); // preprocess all loaded data
+		this.data = data.map((d) => interpolator(blurData(d, layer.style.blurRadius), subCoords)); // preprocess all loaded data
 
-		if (this.layer.vector) {
-			this._vectorPrepare();
+		if (layer.vector) {
+			this._vectorMagnitudesPrepare();
 		}
 
 		if (maskType && tileType === TileType.Mixed) {
 			// const url = 'http://localhost:8080/' + coords.z + '/' + coords.x + '/' + coords.y;
 			const url = layer.state.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
 			try {
-				const mask = await layer.loadMask(url);
-				// const mask = await loadImageData(url, layer.loadData.controller.signal);
+				const mask = await layer.loadMaskFunc(url);
 				applyMask(this.data[0], mask, maskType);
 			} catch (e) {
 				this.layer.style.mask = undefined;
@@ -382,7 +361,7 @@ export class WxTile {
 		}
 
 		if (this.layer.vector) {
-			this._createSLines();
+			this._createStreamLines();
 		}
 
 		return this;
@@ -403,7 +382,7 @@ export class WxTile {
 		return this.layer.dataSource.variables.map((v: string) => u.replace('{var}', v));
 	} // _coordsToURLs
 
-	protected _vectorPrepare(): void {
+	protected _vectorMagnitudesPrepare(): void {
 		if (this.data.length !== 2) throw 'this.data !== 2';
 		// fill data[0] with precalculated vectors' lengths.
 		this.data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
@@ -422,25 +401,24 @@ export class WxTile {
 	} // _vectorPrepare
 
 	protected _drawFillAndIsolines(): void {
-		const { imData } = this;
+		const { imageDataForFillCtx } = this;
 
 		const { canvasFillCtx } = this;
 		// canvasFillCtx.clearRect(0, 0, 256, 256); // transfered to this.draw
-		const im = new Uint32Array(imData.data.buffer); // a usefull representation of image's bytes (same memory)
+		const imageFillBuffer = new Uint32Array(imageDataForFillCtx.data.buffer); // a usefull representation of image's bytes (same memory)
 		const { raw } = this.data[0]; // scalar data
 		const { clut, style } = this.layer;
 		const { levelIndex, colorsI } = clut;
 
 		// fill: none, gradient, solid
 		if (style.fill !== 'none') {
-			const fillC = colorsI;
 			for (let y = 0, i = 0, di = 259; y < 256; ++y, di += 2) {
 				for (let x = 0; x < 256; ++x, ++i, ++di) {
-					im[i] = fillC[raw[di]];
+					imageFillBuffer[i] = colorsI[raw[di]];
 				}
 			}
 		} else {
-			im.fill(0);
+			imageFillBuffer.fill(0);
 		}
 
 		const info: {
@@ -451,6 +429,7 @@ export class WxTile {
 			db: number;
 			mli: number;
 		}[] = []; // numbers on isolines
+
 		// isolineColor: none, #bbaa88ff - "solid color", fill, inverted
 		if (style.isolineColor !== 'none') {
 			const flatColor = style.isolineColor[0] === '#' ? HEXtoRGBA(style.isolineColor) : 0;
@@ -471,15 +450,16 @@ export class WxTile {
 						const ii = y * 256 + x;
 						switch (style.isolineColor) {
 							case 'inverted':
-								im[ii] = ~colorsI[md] | 0xff000000; // invert color and make alfa = 255
+								imageFillBuffer[ii] = ~colorsI[md] | 0xff000000; // invert color and make alfa = 255
 								break;
 							case 'fill':
-								im[ii] = colorsI[md] | 0xff000000; // make alfa = 255
+								imageFillBuffer[ii] = colorsI[md] | 0xff000000; // make alfa = 255
 								break;
 							default:
-								im[ii] = flatColor;
+								imageFillBuffer[ii] = flatColor;
 								break;
 						} // switch isoline_style
+
 						if (style.isolineText && !(++t % 255) && x > 20 && x < 235 && y > 20 && y < 235) {
 							info.push({ x, y, d, dr, db, mli });
 						}
@@ -488,7 +468,7 @@ export class WxTile {
 			} // for y
 		} // if (style.isolineColor != 'none')
 
-		canvasFillCtx.putImageData(imData, 0, 0);
+		canvasFillCtx.putImageData(imageDataForFillCtx, 0, 0);
 
 		// drawing Info
 		if (info.length) {
@@ -511,30 +491,32 @@ export class WxTile {
 		} // if info.length
 	} // drawIsolines
 
-	protected _drawStaticSlines(): void {
-		if (!this.sLines.length || !this.layer.style.streamLineStatic) return;
-		const { canvasSlinesCtx } = this;
-		// canvasSlinesCtx.clearRect(0, 0, 256, 256);  // transfered to this.draw
+	protected _drawStreamLinesStatic(): void {
+		if (!this.streamLines.length || !this.layer.style.streamLineStatic) return;
+		const { canvasVectorAnimationCtx: ctx } = this;
 		if (this.layer.style.streamLineColor === 'none') {
-			this.sLines = []; // this can happen if a new style was set up after the layer was loaded.
+			this.streamLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
-		canvasSlinesCtx.lineWidth = 2;
-		canvasSlinesCtx.strokeStyle = this.layer.style.streamLineColor; // color
-		canvasSlinesCtx.beginPath();
-		for (let i = this.sLines.length; i--; ) {
-			const sLine = this.sLines[i];
+
+		ctx.lineWidth = 2;
+		ctx.strokeStyle = this.layer.style.streamLineColor; // color
+
+		ctx.beginPath();
+		for (let i = this.streamLines.length; i--; ) {
+			const sLine = this.streamLines[i];
 			for (let k = 0; k < sLine.length - 1; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
-				canvasSlinesCtx.moveTo(p0.x, p0.y);
-				canvasSlinesCtx.lineTo(p1.x, p1.y);
+				ctx.moveTo(p0.x, p0.y);
+				ctx.lineTo(p1.x, p1.y);
 			}
 		}
-		canvasSlinesCtx.stroke();
+
+		ctx.stroke();
 	}
 
-	protected _drawVector(): void {
+	protected _drawVectorsStatic(): void {
 		const { clut, style } = this.layer;
 		if (!this.layer.vector || !clut.DataToKnots) return;
 		if (!style.vectorColor || style.vectorColor === 'none') return;
@@ -542,21 +524,21 @@ export class WxTile {
 		if (this.data.length !== 3) throw 'this.data.length !== 3';
 		const [l, u, v] = this.data;
 
-		const { canvasVectorCtx } = this;
+		const { canvasVectorCtx: ctx } = this;
 
 		switch (style.vectorType) {
 			case 'barbs':
-				canvasVectorCtx.font = '40px barbs';
+				ctx.font = '40px barbs';
 				break;
 			case 'arrows':
-				canvasVectorCtx.font = '50px arrows';
+				ctx.font = '50px arrows';
 				break;
 			default:
-				canvasVectorCtx.font = style.vectorType;
+				ctx.font = style.vectorType;
 		}
 
-		canvasVectorCtx.textAlign = 'center';
-		canvasVectorCtx.textBaseline = 'middle';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
 
 		const addDegrees = style.addDegrees ? 0.017453292519943 * style.addDegrees : 0;
 
@@ -573,35 +555,35 @@ export class WxTile {
 				const vecChar = String.fromCharCode(vecCode);
 				switch (style.vectorColor) {
 					case 'inverted':
-						canvasVectorCtx.fillStyle = RGBtoHEX(~clut.colorsI[l.raw[di]]); // alfa = 255
+						ctx.fillStyle = RGBtoHEX(~clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					case 'fill':
-						canvasVectorCtx.fillStyle = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
+						ctx.fillStyle = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					default:
-						canvasVectorCtx.fillStyle = style.vectorColor; // put color directly from vectorColor
+						ctx.fillStyle = style.vectorColor; // put color directly from vectorColor
 						break;
 				} // switch isoline_style
 
-				canvasVectorCtx.save();
-				canvasVectorCtx.translate(x, y);
-				canvasVectorCtx.rotate(ang + addDegrees);
-				canvasVectorCtx.fillText(vecChar, 0, 0);
-				canvasVectorCtx.restore();
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(ang + addDegrees);
+				ctx.fillText(vecChar, 0, 0);
+				ctx.restore();
 			} // for x
 		} // for y
 	} // _drawVector
 
-	protected _drawDegree(): void {
+	protected _drawDegreesStatic(): void {
 		if (this.layer.state.units !== 'degree') return;
 
-		const { canvasVectorCtx } = this;
+		const { canvasVectorCtx: ctx } = this;
 
 		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
 
-		canvasVectorCtx.font = '50px arrows';
-		canvasVectorCtx.textAlign = 'center';
-		canvasVectorCtx.textBaseline = 'middle';
+		ctx.font = '50px arrows';
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
 		// ctx.clearRect(0, 0, 256, 256);
 		const l = this.data[0];
 		const vecChar = 'L';
@@ -616,32 +598,32 @@ export class WxTile {
 				const ang = angDeg * 0.01745329251; // pi/180
 				switch (this.layer.style.vectorColor) {
 					case 'inverted':
-						canvasVectorCtx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						ctx.fillStyle = RGBtoHEX(~this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					case 'fill':
-						canvasVectorCtx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
+						ctx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
 					default:
-						canvasVectorCtx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
+						ctx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
 						break;
 				} // switch isoline_style
 
-				canvasVectorCtx.save();
-				canvasVectorCtx.translate(x, y);
-				canvasVectorCtx.rotate(ang + addDegrees);
-				canvasVectorCtx.fillText(vecChar, 0, 0);
-				canvasVectorCtx.restore();
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(ang + addDegrees);
+				ctx.fillText(vecChar, 0, 0);
+				ctx.restore();
 			} // for x
 		} // for y
 	} // _drawDegree
 
-	protected _createSLines(): void {
+	protected _createStreamLines(): void {
 		if (this.data.length !== 3) throw 'this.data.length !== 3';
-		if (!this.layer.style.streamLineColor || this.layer.style.streamLineColor === 'none') return;
+		if (this.layer.style.streamLineColor === 'none') return;
 		const factor = this.layer.style.streamLineSpeedFactor || 1;
 
 		// idea is taken from the LIC (linear integral convolution) algorithm and the 'multipartical vector field visualisation'
-		this.sLines = []; // an array of stremllines. Each section of streamline represents a position and size of a particle.
+		this.streamLines = []; // an array of stremllines. Each section of streamline represents a position and size of a particle.
 		// Having the stream lines as precalculated trajectories makes an animation more predictable and (IMHO) representative.
 		// Algorithm: use U and V as an increment to build a trajectory. To make trajectory more or less correct the algo
 		// does 20 moc steps and stores the point into streamline (sLine).
@@ -674,7 +656,7 @@ export class WxTile {
 					xf -= (factor * (u.dmin + u.raw[di] * u.dmul)) / l.dmax;
 					yf += (factor * (v.dmin + v.raw[di] * v.dmul)) / l.dmax; // negative - due to Lat goes up but screen's coordinates go down
 				} // for i backward
-				sLine.length > 2 && this.sLines.push(sLine);
+				sLine.length > 2 && this.streamLines.push(sLine);
 			} // for x
 		} // for y
 	} // _createSLines

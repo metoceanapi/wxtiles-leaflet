@@ -13,6 +13,7 @@ import {
 	Meta,
 	Legend,
 	ColorStylesStrict,
+	fetchJson,
 } from '../src/wxtiles';
 import '../src/wxtiles.css';
 
@@ -21,11 +22,6 @@ let layerControl: L.Control.Layers;
 let config: Config; // application config
 let styles: ColorStylesStrict; // all available styles. Not every style is sutable for every layer.
 let globalLayer: WxTilesLayer | undefined; // current layer
-
-// json loader helper
-async function fetchJson(url: string) {
-	return (await fetch(url)).json();
-}
 
 async function fillDataSets() {
 	let datasetsNames: string[];
@@ -144,7 +140,7 @@ function startPlay() {
 	if (!globalLayer) return;
 	buttonPlayStopEl.textContent = 'stop';
 	globalLayer.setTimeAnimationMode(+inputCoarseLevelEl.value);
-	setTimeout(async function nextTimeStep() {
+	(async function nextTimeStep() {
 		if (!globalLayer) return;
 		if (buttonPlayStopEl.textContent === 'stop') {
 			const start = Date.now();
@@ -153,14 +149,17 @@ function startPlay() {
 			selectTimeEl.selectedIndex %= selectTimeEl.length;
 			const dt = +inputAnimDelayEl.value - (Date.now() - start);
 			setTimeout(nextTimeStep, dt < 0 ? 0 : dt);
-			oldE && updateInfoPanel(oldE);
+			updateInfoPanel(undefined);
 		}
-	});
+	})();
 }
 
 function stopPlay() {
-	buttonPlayStopEl.textContent = 'play';
-	globalLayer?.unsetTimeAnimationMode();
+	if (buttonPlayStopEl.textContent !== 'play') {
+		buttonPlayStopEl.textContent = 'play';
+		globalLayer?.unsetTimeAnimationMode();
+	}
+	return;
 }
 
 function addOption(baseStyle: string, value = baseStyle) {
@@ -302,19 +301,21 @@ function drawLegend({ legend, canvas }: { legend: Legend; canvas: HTMLCanvasElem
 	ctx.strokeRect(1, 1, width - 3, height - 2); //for white background
 }
 
-let oldE: L.LeafletMouseEvent | undefined;
-function updateInfoPanel(e: L.LeafletMouseEvent) {
-	oldE = e; // save 'e'
+let oldE: L.LeafletMouseEvent;
+function updateInfoPanel(e: L.LeafletMouseEvent | undefined) {
+	// save 'e'
+	if (e) oldE = e;
+	else e = oldE; // restore 'e'
 	let content = '' + `${e.latlng}<br>`;
 	map.eachLayer((layer) => {
 		if (layer instanceof WxTilesLayer) {
-			const tile = layer.getTile(e!.latlng);
+			const tile = layer.getLayerInfoAtLatLon(e!.latlng);
 			const { min, max } = layer.getMinMax();
 
 			content += tile
 				? `<div>
 				<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-				${layer.dataSource.name}=${tile.inStyleUnits.toFixed(2)} ${tile.units} (${min.toFixed(2)}, ${max.toFixed(2)})
+				${layer.dataSource.name}=${tile.inStyleUnits.map((d) => d.toFixed(2)).join(',')} ${tile.units} (${min.toFixed(2)}, ${max.toFixed(2)})
 				</div>`
 				: '';
 		}
@@ -327,7 +328,7 @@ function popupInfo(e: L.LeafletMouseEvent) {
 	let content = '';
 	map.eachLayer((layer) => {
 		if (layer instanceof WxTilesLayer) {
-			const tile = layer.getTile(e.latlng);
+			const tile = layer.getLayerInfoAtLatLon(e.latlng);
 			const time = layer.getTime();
 			content += tile
 				? `<div>

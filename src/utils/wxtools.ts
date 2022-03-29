@@ -37,7 +37,6 @@ export interface ColorStyleWeak {
 	units?: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
 	mask?: string;
-
 }
 
 export interface ColorStylesWeakMixed {
@@ -161,40 +160,31 @@ function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStri
 	return styles;
 }
 
-// type CacheableFunc<T> = (url: string) => Promise<T>;
-type CacheableFunc<T> = (url: string) => T;
+type CacheableURILoaderPromiseFunc<T> = (url: string) => Promise<T>;
+// type CacheableURILoaderPromiceFunc<T> = (url: string) => T;
 
 // Caches
-function cacheIt<T>(fn: CacheableFunc<T>): CacheableFunc<T> {
-	const cache = new Map<string, T>();
-	return (url: string): T => {
-		const resCached = cache.get(url);
-		if (resCached === undefined) {
-			const res = fn(url);
-			if (res instanceof Promise) {
-				res
-					.then(() => cache.set(url, res))
-					.catch((e) => {
-						if (!(e instanceof DOMException)) {
-							// cache any result (even falures) except aborted (images), so they could be reloaded
-							cache.set(url, res);
-						}
-					});
-			} else {
-				cache.set(url, res);
-			}
-
-			return res;
-		}
-		return resCached;
+function cacheURIPromise<T>(fn: CacheableURILoaderPromiseFunc<T>): CacheableURILoaderPromiseFunc<T> {
+	const cache = new Map<string, Promise<T>>();
+	return (url: string): Promise<T> => {
+		const cached = cache.get(url);
+		if (cached) return cached;
+		const promise = fn(url);
+		// cache any result (even falures)
+		cache.set(url, promise);
+		// except aborted (images), so they could be reloaded
+		promise.catch((e: DOMException) => {
+			e.code === DOMException.ABORT_ERR && cache.delete(url);
+		});
+		return promise;
 	};
 }
 
 // abortable 'loadImage'
-async function loadImage(url: string, controllerHolder: AbortControllerHolder): Promise<HTMLImageElement> {
+async function loadImage(url: string, requestInit?: RequestInit): Promise<HTMLImageElement> {
 	//// Method 0
 	const img = new Image();
-	img.src = URL.createObjectURL(await (await fetch(url, controllerHolder.controller)).blob());
+	img.src = URL.createObjectURL(await (await fetch(url, requestInit)).blob());
 	await img.decode();
 	URL.revokeObjectURL(img.src);
 	return img;
@@ -241,10 +231,6 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
-interface AbortControllerHolder {
-	controller: AbortController;
-}
-
 function imageToData(image: HTMLImageElement): ImageData {
 	const { width, height } = image;
 	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
@@ -253,58 +239,105 @@ function imageToData(image: HTMLImageElement): ImageData {
 	return context.getImageData(0, 0, width, height);
 }
 
-export function loadImageData(url: string, controllerHolder: AbortControllerHolder): Promise<ImageData> {
-	return loadImage(url, controllerHolder).then(imageToData);
+export async function loadImageData(url: string, requestInit?: RequestInit): Promise<ImageData> {
+	return imageToData(await loadImage(url, requestInit));
+}
+
+function dataToIntegral(imData: ImageData): DataIntegral {
+	if (imData.data[34] < 1) {
+		WXLOG('Warning: image is in too old format. Check the version of the Splitter.');
+	}
+	
+	// picTile contains bytes RGBARGBARGBA ...
+	// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
+	const imbuf = new Uint16Array(imData.data.buffer);
+	const raw = new Uint16Array(imbuf.length / 2);
+	for (let i = 0; i < raw.length; i++) {
+		raw[i] = imbuf[i * 2];
+	}
+
+	// Min and Max values of the data are encoded as two floats saved in the first 8 pixels in Blue channel
+	const minmaxbuf = new Uint8Array(8);
+	for (let i = 0; i < 8; ++i) {
+		minmaxbuf[i] = imData.data[i * 4 + 2];
+	}
+
+	const view = new DataView(minmaxbuf.buffer);
+	const dmin = view.getFloat32(0, true);
+	const dmax = view.getFloat32(4, true);
+	const dmul = (dmax - dmin) / 65535;
+	const integral = integralImage(raw);
+	return { raw, dmin, dmax, dmul, integral, radius: 0 };
 }
 
 // http://webpjs.appspot.com/ = webp lossless decoder
 // https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
-function loadDataIntegral(url: string, controllerHolder: AbortControllerHolder): Promise<DataIntegral> {
-	const dataToIntegral = (imData: ImageData): DataIntegral => {
-		// picTile contains bytes RGBARGBARGBA ...
-		// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
-		const imbuf = new Uint16Array(imData.data.buffer);
-		const raw = new Uint16Array(imbuf.length / 2);
-		for (let i = 0; i < raw.length; i++) {
-			raw[i] = imbuf[i * 2];
-		}
-
-		const minmaxbuf = new Uint8Array(imData.data.buffer);
-		for (let i = 0; i < 8; ++i) {
-			minmaxbuf[i] = minmaxbuf[i * 4 + 2];
-		}
-
-		const view = new DataView(imData.data.buffer);
-		const dmin = view.getFloat32(0, true);
-		const dmax = view.getFloat32(4, true);
-		const dmul = (dmax - dmin) / 65535;
-		const integral = integralImage(raw);
-		return { raw, dmin, dmax, dmul, integral, radius: 0 };
-	};
-
+async function loadDataIntegral(url: string, requestInit?: RequestInit): Promise<DataIntegral> {
 	// const image = await loadImage(url, signal); ///*Old approach to solve 'crossorigin' and 'abort'*/ const img = await loadImage(URL.createObjectURL(await (await fetch(url, { signal, cache: 'force-cache' })).blob()));
 	// const context = Object.assign(document.createElement('canvas'), { width: 258, height: 258, imageSmoothingEnabled: false }).getContext('2d');
 	// if (!context) return Promise.reject();
 	// context.drawImage(image, 0, 0);
 	// return pixelsToData(context.getImageData(0, 0, 258, 258));
-	return loadImageData(url, controllerHolder).then(dataToIntegral);
+	return dataToIntegral(await loadImageData(url, requestInit));
 	// return dataToIntegral(await loadImageData(url, signal));
 }
 
-export interface AbortableCacheableFunc<T> extends CacheableFunc<T> {
-	controllerHolder: AbortControllerHolder;
+interface AbortControllerHolder {
+	controller: AbortController;
+	debug: string;
 }
 
-export function loadDataPictureCachedAbortable(): AbortableCacheableFunc<Promise<DataIntegral>> {
-	const controllerHolder: AbortControllerHolder = { controller: new AbortController() };
-	const func = <AbortableCacheableFunc<Promise<DataIntegral>>>cacheIt((url: string) => loadDataIntegral(url, controllerHolder));
+export interface AbortableCacheableURILoaderPromiseFunc<T> extends CacheableURILoaderPromiseFunc<T> {
+	controllerHolder: AbortControllerHolder;
+	abort: () => void;
+}
+
+// imprints requestInit into F
+// creates a new AbortControllerHolder, so controller abortable and resettable,
+// and returns a new function F that has 'reset' property to abort the request and reset the controller
+export function loadingFunctionCachedAbortable<T>(
+	F: (url: string, requestInit?: RequestInit) => Promise<T>,
+	requestInit?: RequestInit
+): AbortableCacheableURILoaderPromiseFunc<T> {
+	const controllerHolder: AbortControllerHolder = {
+		controller: new AbortController(),
+		debug: Date.now().toString(),
+	};
+
+	const localRequestInit = Object.assign({}, requestInit, { signal: controllerHolder.controller.signal });
+
+	const func = <AbortableCacheableURILoaderPromiseFunc<T>>cacheURIPromise((url: string) => F(url, localRequestInit));
+	func.controllerHolder = controllerHolder;
+	func.abort = () => {
+		controllerHolder.controller.abort();
+		controllerHolder.controller = new AbortController();
+		controllerHolder.debug = Date.now().toString();
+		localRequestInit.signal = controllerHolder.controller.signal;
+	};
+
+	return func;
+}
+
+export function loadDataIntegralCachedAbortable(requestInit?: RequestInit): AbortableCacheableURILoaderPromiseFunc<DataIntegral> {
+	return loadingFunctionCachedAbortable(loadDataIntegral, requestInit);
+}
+
+export function loadImageDataCachedAbortable(requestInit?: RequestInit): AbortableCacheableURILoaderPromiseFunc<ImageData> {
+	return loadingFunctionCachedAbortable(loadImageData, requestInit);
+}
+
+export function loadDataIntegralCachedAbortable_old(requestInit?: RequestInit): AbortableCacheableURILoaderPromiseFunc<DataIntegral> {
+	const controllerHolder: AbortControllerHolder = { controller: new AbortController(), debug: Date.now().toString() };
+	if (!requestInit) requestInit = { signal: controllerHolder.controller.signal };
+	const func = <AbortableCacheableURILoaderPromiseFunc<DataIntegral>>cacheURIPromise((url: string) => loadDataIntegral(url, requestInit));
 	func.controllerHolder = controllerHolder;
 	return func;
 }
 
-export function loadImageDataCachedAbortable(controller: AbortController) {
-	const controllerHolder: AbortControllerHolder = { controller };
-	const func = <AbortableCacheableFunc<Promise<ImageData>>>cacheIt((url: string) => loadImageData(url, controllerHolder));
+export function loadImageDataCachedAbortable_old(requestInit?: RequestInit): AbortableCacheableURILoaderPromiseFunc<ImageData> {
+	const controllerHolder: AbortControllerHolder = { controller: new AbortController(), debug: Date.now().toString() };
+	if (!requestInit) requestInit = { signal: controllerHolder.controller.signal };
+	const func = <AbortableCacheableURILoaderPromiseFunc<ImageData>>cacheURIPromise((url: string) => loadImageData(url, requestInit));
 	func.controllerHolder = controllerHolder;
 	return func;
 }
@@ -417,8 +450,8 @@ export function HEXtoRGBA(c: string): number {
 }
 
 // json loader helper
-export async function fetchJson(url: RequestInfo, init?: RequestInit) {
-	return (await fetch(url, init)).json();
+export async function fetchJson(url: RequestInfo, requestInit?: RequestInit) {
+	return (await fetch(url, requestInit)).json();
 }
 
 export function createEl(tagName: string, className = '', container?: HTMLElement): HTMLElement {

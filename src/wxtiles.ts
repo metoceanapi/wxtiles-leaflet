@@ -7,7 +7,7 @@ import L from 'leaflet';
 import { WXLOG } from './utils/wxtools';
 import { WxTilesLayer, WxTilesLayerSettings } from './tilesLayer';
 
-export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, WxGetColorSchemes } from './utils/wxtools';
+export { WxTilesLogging, WxTilesLibSetup, WxGetColorStyles, WxGetColorSchemes, fetchJson } from './utils/wxtools';
 export type { ColorStylesWeakMixed, ColorStyleStrict, ColorStylesStrict, Units, ColorSchemes, LibSetupObject } from './utils/wxtools';
 export type { WxTilesLayerSettings, DataSource, Meta, WxTileInfo } from './tilesLayer';
 export { WxTilesLayer } from './tilesLayer';

@@ -6,7 +6,7 @@ import L from 'leaflet';
 import { RawCLUT, createLegend, Legend } from './utils/RawCLUT';
 import { TileCreate, TileEl, WxTile } from './tile';
 import {
-	loadDataPictureCachedAbortable,
+	loadDataIntegralCachedAbortable,
 	fetchJson,
 	RGBtoHEX,
 	WxGetColorStyles,
@@ -14,7 +14,7 @@ import {
 	ColorStylesStrict,
 	WXLOG,
 	ColorStyleStrict,
-	AbortableCacheableFunc,
+	AbortableCacheableURILoaderPromiseFunc,
 	getClosestTimeString,
 	DataIntegral,
 	loadImageDataCachedAbortable,
@@ -57,6 +57,7 @@ export interface DataSource {
 	variables: string[]; // variabls to be used for the layer rendering
 	name: string; // attribute of the dataSource to be used externally
 	styleName: string; // The name of the style (from styles.json) to apply for the layer
+	requestInit?: RequestInit; // requestInit to be used for the layer's data loading
 }
 
 export interface WxLayerState {
@@ -82,18 +83,21 @@ export interface WxTilesLayerSettings {
 }
 
 export interface WxTileInfo {
-	tile: WxTile;
-	data: number;
-	raw: number;
-	rgba: number;
-	hexColor: string;
-	inStyleUnits: number;
+	wxtile: WxTile;
+	data: number[];
+	raw: number[];
+	rgba: number[];
+	hexColor: string[];
+	inStyleUnits: number[];
 	tilePoint: { x: number; y: number };
 	units: string;
 }
 
 const incompleteSetup = 'setup not complete';
-const loadMask: AbortableCacheableFunc<Promise<ImageData>> = loadImageDataCachedAbortable(new AbortController());
+let loadMaskFunc: AbortableCacheableURILoaderPromiseFunc<ImageData> | undefined = undefined;
+export function WxInitLoadMaskFunc(requestInit?: RequestInit) {
+	loadMaskFunc = loadImageDataCachedAbortable(requestInit);
+}
 
 export class WxTilesLayer extends L.GridLayer {
 	setupCompletePromise: Promise<boolean>;
@@ -101,8 +105,8 @@ export class WxTilesLayer extends L.GridLayer {
 	protected styles: ColorStylesStrict = WxGetColorStyles();
 	dataSource: DataSource;
 	style: ColorStyleStrict = Object.assign({}, this.styles['base']);
-	loadData: AbortableCacheableFunc<Promise<DataIntegral>> = loadDataPictureCachedAbortable();
-	loadMask = loadMask;
+	loadDataIntegralFunc: AbortableCacheableURILoaderPromiseFunc<DataIntegral>;
+	loadMaskFunc: AbortableCacheableURILoaderPromiseFunc<ImageData>;
 	error: string | null = incompleteSetup;
 	vector: boolean = false;
 	clut: RawCLUT = new RawCLUT(this.style, '', [0, 2], false);
@@ -117,7 +121,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 	constructor({ dataSource, options, lazy }: WxTilesLayerSettings) {
 		super(options); // Object.assign(this.options, options); // equal to {leaflet}.GridLayer.prototype.initialize.call(this, options); // essential for Leaflet' options initializing from parameters
-		WXLOG('Creating a WxTilex layer:', dataSource.name, '. Params:', JSON.stringify({ dataSource, options }));
+		WXLOG('Creating a WxTiles layer:', dataSource.name, '. Params:', JSON.stringify({ dataSource, options }));
 
 		// class constructor
 		if (
@@ -144,6 +148,10 @@ export class WxTilesLayer extends L.GridLayer {
 			originURI: 'undefined',
 			time: 'undefined',
 		};
+
+		this.loadDataIntegralFunc = loadDataIntegralCachedAbortable(dataSource.requestInit);
+		if (!loadMaskFunc) loadMaskFunc = loadImageDataCachedAbortable(dataSource.requestInit);
+		this.loadMaskFunc = loadMaskFunc;
 
 		this.setupCompletePromise = new Promise((resolve) => {
 			const lazySetup = () => {
@@ -196,24 +204,21 @@ export class WxTilesLayer extends L.GridLayer {
 	}
 
 	/** get all the information about tile and point it represents */
-	getTile(latlng: L.LatLngExpression): WxTileInfo | undefined {
-		// TODO return type
+	getLayerInfoAtLatLon(latlng: L.LatLngExpression): WxTileInfo | undefined {
 		if (!this._map || this.error) return;
 		const zoom = this._map.getZoom();
-		const { x, y } = this._map.project(latlng, zoom);
-		const coords = { x: ~~(x / 256), y: ~~(y / 256) };
-		// const wxtile = this.wxtiles.get(`${coords.x}:${coords.y}:${zoom}`);
-		const wxtile = this._getCachedTile(coords.x, coords.y, zoom);
+		const mapPixCoord = this._map.project(latlng, zoom); // map pixel coordinates
+		const tileCoords = mapPixCoord.divideBy(256).floor(); // tile's coordinates
+		const wxtile = this._getCachedTile(tileCoords, zoom);
 		if (!wxtile) return; // tile is being created and not ready yet
-		const tilePoint = { x: ~~(x - coords.x * 256), y: ~~(y - coords.y * 256) };
-
-		const tileData = wxtile.getData(tilePoint);
+		const tilePixel = mapPixCoord.subtract(tileCoords.multiplyBy(256)).floor(); // tile pixel coordinates
+		const tileData = wxtile.getData(tilePixel);
 		if (!tileData) return; // oops! no data
 		const { raw, data } = tileData;
-		const rgba = this.clut.colorsI[raw];
-		const hexColor = RGBtoHEX(rgba);
-		const inStyleUnits = this.clut.DataToStyle(data);
-		return { tile: wxtile, data, raw, rgba, hexColor, inStyleUnits, tilePoint, units: this.style.units };
+		const rgba = raw.map((r) => this.clut.colorsI[r]);
+		const hexColor = rgba.map(RGBtoHEX);
+		const inStyleUnits = data.map((d) => this.clut.DataToStyle(d));
+		return { wxtile, data, raw, rgba, hexColor, inStyleUnits, tilePoint: tilePixel, units: this.style.units };
 	} // getTile
 
 	setStyle(name: string | undefined): void {
@@ -301,7 +306,7 @@ export class WxTilesLayer extends L.GridLayer {
 		const layerTime = getClosestTimeString(this.state.meta.times, time);
 		if (this.state.time === layerTime) {
 			WXLOG('setTime: the same time - skipped');
-			return Promise.resolve([]);
+			return Promise.resolve<WxTile[]>([]);
 		}
 
 		this.state.time = layerTime;
@@ -314,6 +319,7 @@ export class WxTilesLayer extends L.GridLayer {
 
 		if (!this._tiles) return Promise.resolve([]);
 
+		// this.loadDataIntegralFunc.abort();
 		const reloadPromice = this._reloadTiles(false);
 
 		/* Ugly workaround for datasets like NZ_Radar where each timestep can have minmax */
@@ -438,7 +444,7 @@ export class WxTilesLayer extends L.GridLayer {
 		return this.animation;
 	}
 
-	protected _getCachedTile(x: number, y: number, zoom: number): WxTile | undefined {
+	protected _getCachedTile({ x, y }: { x: number; y: number }, zoom: number): WxTile | undefined {
 		return <WxTile>(<any>this._tiles[`${x}:${y}:${zoom}`]?.el)?.wxtile;
 	}
 
@@ -531,34 +537,34 @@ export class WxTilesLayer extends L.GridLayer {
 		this.setupCompletePromise.then(() => {
 			// this promise is used to avoid appearance of zombie layers due to 'lazy loading' if a user adds->removes layers too fast
 			this._stopLoadingResetLoadDataFunc(); // remove cache
-			this._stopSlinesAnimation();
+			this._stopVectorLinesAnimation();
 		});
 	}
 
 	protected _stopLoadingResetLoadDataFunc(): void {
-		this.loadData.controllerHolder.controller.abort();
-		this.loadData = loadDataPictureCachedAbortable(); // and reset cache
+		this.loadDataIntegralFunc.abort();
+		this.loadDataIntegralFunc = loadDataIntegralCachedAbortable(); // and reset cache
 	}
 
 	protected _checkAndStartSlinesAnimation(): void {
 		if (this.animFrame || !this.animation || !this.vector || !this.style.streamLineColor || this.style.streamLineColor === 'none') return;
 
-		const drawSLines: FrameRequestCallback = (timeStemp: number) => {
+		const drawAnimatedVectorLinesStep: FrameRequestCallback = (timeStemp: number) => {
 			if (!this.animation || this.style.streamLineStatic) {
-				this._stopSlinesAnimation();
+				this._stopVectorLinesAnimation();
 				return;
 			}
 
-			this._ForEachTile((wxtile) => wxtile.drawSLines(timeStemp));
-			this.animFrame = requestAnimationFrame(drawSLines);
+			this._ForEachTile((wxtile) => wxtile.drawVectorAnimationLinesStep(timeStemp));
+			this.animFrame = requestAnimationFrame(drawAnimatedVectorLinesStep);
 		};
 
-		drawSLines(0);
+		this.animFrame = requestAnimationFrame(drawAnimatedVectorLinesStep);
 	}
 
-	protected _stopSlinesAnimation(): void {
+	protected _stopVectorLinesAnimation(): void {
 		cancelAnimationFrame(this.animFrame);
-		this._ForEachTile((wxtile) => wxtile.clearSLinesCanvas());
+		this._ForEachTile((wxtile) => wxtile.clearVectorAnimationCanvas());
 		this.animFrame = 0;
 	}
 
@@ -574,15 +580,17 @@ export class WxTilesLayer extends L.GridLayer {
 	protected _reloadTiles(redraw: boolean = true): Promise<WxTile[]> {
 		WXLOG('_reloadTiles: start - ' + this.dataSource.name);
 
-		this.loadData.controllerHolder.controller.abort();
-		this.loadData.controllerHolder.controller = new AbortController();
-
 		const promises = this._ForEachTile((wxtile) => wxtile.load());
 		const reloadedPromice = Promise.all(promises);
-		const { controller } = this.loadData.controllerHolder; // save current controller ...
-		redraw && reloadedPromice.then(() => controller.signal.aborted || this._redrawTiles()); // ... in case _reloadTiles called again, so don't redraw
+		const { controller } = this.loadDataIntegralFunc.controllerHolder; // save current controller ...
 
-		WXLOG('_reloadTiles: finished - ' + this.dataSource.name);
+		reloadedPromice.then(() => {
+			WXLOG('_reloadTiles: reloadedPromice - ' + this.dataSource.name + '(aborted: ' + controller.signal.aborted + ')');
+			controller.signal.aborted && WXLOG('aborted!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+			redraw && !controller.signal.aborted && this._redrawTiles();
+		}); // ... in case _reloadTiles called again, so don't redraw
+
+		WXLOG('_reloadTiles: promise created - ' + this.dataSource.name);
 		return reloadedPromice; // we shouldn't 'await' here! Give another promise instead
 	} // _reloadTiles
 } // WxGridLayerProto
