@@ -507,11 +507,12 @@ export class WxTilesLayer extends L.GridLayer {
 
 	protected _redrawTiles(): void {
 		if (this.redrawRequestID) return; // in case animation was queued
+		WXLOG('_redrawTiles: start: ' + this.dataSource.name);
 
 		this.redrawRequestID = requestAnimationFrame(() => {
-			WXLOG('_redrawTiles: requestAnimationFrame: ' + this.dataSource.name);
 			this._ForEachWxTile((wxtile) => wxtile.draw());
 			this.redrawRequestID = 0;
+			WXLOG('_redrawTiles: requestAnimationFrame: end: ' + this.dataSource.name);
 		});
 	} // _redrawTiles
 } // WxTilesLayer
