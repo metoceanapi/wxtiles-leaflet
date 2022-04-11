@@ -283,7 +283,7 @@ export class WxTile {
 			this._vectorMagnitudesPrepare();
 		}
 
-		await this._applyMask(tileType);
+		await this._applyMask(tileType, subCoords === undefined);
 
 		if (layer.state.vector) {
 			this._createStreamLines();
@@ -292,13 +292,20 @@ export class WxTile {
 		return this;
 	} // _load
 
-	protected async _applyMask(tileType: TileType): Promise<void> {
+	protected async _applyMask(tileType: TileType, needCopy: boolean): Promise<void> {
 		const { coords, layer } = this;
 		if ((layer.style.mask === 'land' || layer.style.mask === 'sea') && tileType === TileType.Mixed) {
 			// 'http://server:port/' + coords.z + '/' + coords.x + '/' + coords.y;
 			const url = layer.dataSource.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
 			try {
 				const maskImage = await layer.loadMaskFunc(url);
+				if (!layer.state.vector && needCopy) {
+					// !!make a copy before masking!! or original data will be spoiled
+					// needCopy is false if this is a subTile (already copied from parent)
+					const { raw: inRaw, dmin, dmax, dmul } = this.data[0];
+					this.data[0] = { raw: new Uint16Array(inRaw), dmin, dmax, dmul };
+				}
+
 				applyMask(this.data[0], maskImage, layer.style.mask);
 			} catch (e) {
 				layer.style.mask = undefined;
