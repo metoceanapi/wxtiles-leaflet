@@ -116,13 +116,14 @@ function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: num
 	}
 }
 
-function subDataPicture(interpolator: InterpolatorSquare, data: DataPicture, subCoords?: Coords): DataPicture {
-	if (!subCoords) return data;
+function subDataPicture(interpolator: InterpolatorSquare, inputData: DataPicture, subCoords?: Coords): DataPicture {
+	if (!subCoords) return inputData;
 	const s = 0.9999999 / Math.pow(2, subCoords.z); // a subsize of a tile // 0.99999 - a dirty trick to never cross the bottom and rigth edges of the original tile.
 	const sx = subCoords.x * 256 * s; // upper left point of a subtile
 	const sy = subCoords.y * 256 * s;
-	const subData: DataPicture = { raw: new Uint16Array(258 * 258), dmin: data.dmin, dmax: data.dmax, dmul: data.dmul };
-	const { raw } = subData;
+	const { raw: inRaw, dmin, dmax, dmul } = inputData;
+	const subData: DataPicture = { raw: new Uint16Array(258 * 258), dmin, dmax, dmul };
+	const { raw: outRaw } = subData;
 	for (let y = -1, i = 0; y <= 256; y++) {
 		const dy = sy + y * s; // `y` projection of the subtile onto the original tile
 		const dyi = Math.floor(dy); // don't use `~~` because of negatives on left and upper borders
@@ -134,22 +135,22 @@ function subDataPicture(interpolator: InterpolatorSquare, data: DataPicture, sub
 			const di = dxi + 1 + (dyi + 1) * 258; // data index
 
 			// interpolation inside a rectangular
-			const a = data.raw[di]; // upper left corner
-			const b = data.raw[di + 1]; // upper right
-			const c = data.raw[di + 258]; // lower left
-			const d = data.raw[di + 258 + 1]; // lower right
-			raw[i] = interpolator(a, b, c, d, dxt, dyt, data.dmin, data.dmul);
+			const a = inRaw[di]; // upper left corner
+			const b = inRaw[di + 1]; // upper right
+			const c = inRaw[di + 258]; // lower left
+			const d = inRaw[di + 258 + 1]; // lower right
+			outRaw[i] = interpolator(a, b, c, d, dxt, dyt, dmin, dmul);
 		} // for x
 	} // for y
 	return subData;
 }
 
-function subData(data: DataPicture, subCoords?: Coords): DataPicture {
-	return subDataPicture(interpolatorSquare, data, subCoords);
+function subData(inputData: DataPicture, subCoords?: Coords): DataPicture {
+	return subDataPicture(interpolatorSquare, inputData, subCoords);
 }
 
-function subDataDegree(data: DataPicture, subCoords?: Coords): DataPicture {
-	return subDataPicture(interpolatorSquareDegree, data, subCoords);
+function subDataDegree(inputData: DataPicture, subCoords?: Coords): DataPicture {
+	return subDataPicture(interpolatorSquareDegree, inputData, subCoords);
 }
 
 function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPicture {
@@ -166,30 +167,38 @@ function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPi
 	return data;
 }
 
-export interface TileEl extends HTMLElement {
-	wxtile?: WxTile;
-}
-
-export interface TileCreateParams {
-	layer: WxTilesLayer;
-	coords: Coords;
-	done: () => void;
-}
-
 function makeBox(coords: Coords): BoundaryMeta {
 	const [px, py] = coordToPixel(coords.x, coords.y);
 	const [west, north] = PixelsToLonLat(px, py, coords.z);
 	const [east, south] = PixelsToLonLat(px + 256, py + 256, coords.z);
 	return { west, north, east, south };
 }
+export interface TileEl extends HTMLElement {
+	wxtile: WxTile;
+}
 
-export function TileCreate({ layer, coords, done }: TileCreateParams): TileEl {
-	const tileEl = <TileEl>createEl('div', 'leaflet-tile s-tile');
-	tileEl.wxtile = new WxTile({ layer, coords, tileEl });
-	tileEl.wxtile.load().then((wxtile) => {
-		wxtile.draw(); // (**) call draw at first loading time only. Otherwise it is drawn manually after all tiles are loaded
-		done(); // done is used after create (to appear on map), not after reload (it is on the map already).
-	});
+export interface TileCreateParams {
+	layer: WxTilesLayer;
+	coords: Coords;
+	done: L.DoneCallback; //() => void;
+}
+
+export function newWxTile(params: TileCreateParams): TileEl {
+	const tileEl = <TileEl>createEl('div', 'leaflet-tile s-tile'); // HTMLDivElement + wxtile
+	tileEl.wxtile = new WxTile(params, tileEl);
+	// load tile data and draw it
+	(async () => {
+		const { wxtile } = tileEl;
+		try {
+			await wxtile.load(); // wait for tile load
+			wxtile.draw(); // draw tile
+		} catch (e) {
+			const { x, y, z } = wxtile.coords;
+			WXLOG(`tile(${x},${y},${z}) loading error: ${e}`);
+		}
+
+		params.done(); // call done anyway
+	})();
 
 	return tileEl;
 }
@@ -215,7 +224,7 @@ export class WxTile {
 	protected streamLines: SLine[] = [];
 	protected imageDataForFillCtx: ImageData;
 
-	constructor({ layer, coords, tileEl }: { layer: WxTilesLayer; coords: Coords; tileEl: HTMLElement }) {
+	constructor({ layer, coords }: TileCreateParams, tileEl: TileEl) {
 		this.coords = coords;
 		this.layer = layer;
 
@@ -228,13 +237,110 @@ export class WxTile {
 
 		function getCtx(el: HTMLCanvasElement) {
 			const ctx = el.getContext('2d');
-			if (!ctx) throw 'error';
+			if (!ctx) throw new Error('getCtx error');
 			return ctx;
 		}
+
 		this.canvasFillCtx = getCtx(this.canvasFill);
 		this.imageDataForFillCtx = this.canvasFillCtx.createImageData(256, 256);
 		this.canvasVectorAnimationCtx = getCtx(this.canvasSlines);
 		this.canvasVectorCtx = this.canvasFillCtx;
+	}
+
+	async load(): Promise<WxTile> {
+		const { coords, layer } = this;
+		await layer.setupCompletePromise; // wait for layer setup
+
+		// should the mask be applied according to the current style?
+		const tileType: TileType | undefined = this._getTileType();
+		if (!tileType) {
+			this.data = [];
+			this.streamLines = [];
+			return this; // fully cut by mask
+		}
+
+		const { upCoords, subCoords } = this._splitCoords(coords);
+		const URL = this.layer.state.baseURL.replace('{z}', String(upCoords.z)).replace('{x}', String(upCoords.x)).replace('{y}', String(upCoords.y));
+		const URLs = this.layer.dataSource.variables.map((v) => URL.replace('{var}', v));
+		let freshData: DataIntegral[];
+		try {
+			freshData = await Promise.all(URLs.map(layer.loadDataIntegralFunc));
+		} catch (e) {
+			// if not manually aborted then it is an empty tile
+			if (e.code !== DOMException.ABORT_ERR) {
+				this.data = [];
+				this.streamLines = [];
+			}
+
+			return this;
+		}
+
+		const interpolator = layer.state.units === 'degree' ? subDataDegree : subData;
+		const processor = (d: DataIntegral) => interpolator(blurData(d, layer.style.blurRadius), subCoords);
+		this.data = freshData.map(processor); // preprocess all loaded data
+
+		if (layer.state.vector) {
+			this._vectorMagnitudesPrepare();
+		}
+
+		await this._applyMask(tileType);
+
+		if (layer.state.vector) {
+			this._createStreamLines();
+		}
+
+		return this;
+	} // _load
+
+	protected async _applyMask(tileType: TileType): Promise<void> {
+		const { coords, layer } = this;
+		if ((layer.style.mask === 'land' || layer.style.mask === 'sea') && tileType === TileType.Mixed) {
+			// 'http://server:port/' + coords.z + '/' + coords.x + '/' + coords.y;
+			const url = layer.dataSource.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
+			try {
+				const maskImage = await layer.loadMaskFunc(url);
+				applyMask(this.data[0], maskImage, layer.style.mask);
+			} catch (e) {
+				layer.style.mask = undefined;
+				WXLOG("Can't load Mask. Masking is Turned OFF");
+			}
+		}
+	}
+
+	protected _splitCoords(coords: Coords): { upCoords: Coords; subCoords?: Coords } {
+		const zDif = coords.z - this.layer.state.meta.maxZoom;
+		if (zDif <= 0) {
+			return { upCoords: coords };
+		}
+		const upCoords = { x: coords.x >>> zDif, y: coords.y >>> zDif, z: this.layer.state.meta.maxZoom };
+		const subCoords = { x: coords.x & ((1 << zDif) - 1), y: coords.y & ((1 << zDif) - 1), z: zDif };
+		return { upCoords, subCoords };
+	} // _splitCoords
+
+	protected _getTileType(): TileType | undefined {
+		const { coords, layer } = this;
+		const { mask } = layer.style;
+		// Check by QTree
+		var tileType: TileType | undefined = TileType.Mixed;
+		if (mask === 'land' || mask === 'sea') {
+			tileType = QTreeCheckCoord(coords); // check 'type' of a tile
+			if (mask === tileType) {
+				return undefined; // cut by QTree
+			}
+		}
+
+		// Check by boundaries
+		const { boundaries } = layer.state.meta;
+		if (boundaries?.boundaries180) {
+			const bbox = makeBox(coords);
+			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
+			if (!boundaries.boundaries180.some(rectIntersect)) {
+				return undefined; // cut by boundaries
+			}
+		}
+
+		// the tile masked partially or not at all
+		return tileType;
 	}
 
 	draw(): void {
@@ -292,7 +398,7 @@ export class WxTile {
 	}
 
 	// x, y - pixel on tile
-	getData({ x, y }: { x: number; y: number }): { raw: number[]; data: number[] } | undefined {
+	getPixelInfo({ x, y }: { x: number; y: number }): { raw: number[]; data: number[] } | undefined {
 		if (!this.data.length) return;
 		return {
 			raw: this.data.map((data) => data.raw[(y + 1) * 258 + (x + 1)]),
@@ -300,90 +406,8 @@ export class WxTile {
 		};
 	} // getData
 
-	async load(): Promise<WxTile> {
-		const { coords, layer } = this;
-		const { boundaries } = layer.state.meta;
-		const maskType = layer.style.mask;
-		// should the mask be applied according to the current style?
-		var tileType: TileType | undefined;
-		if (maskType === 'land' || maskType === 'sea') {
-			tileType = QTreeCheckCoord(coords); // check 'type' of a tile
-			if (maskType === tileType) {
-				// whole this tile is cut by the mask -> nothing to load and process
-				this.data = [];
-				this.streamLines = [];
-				return this;
-			}
-		}
-
-		if (boundaries?.boundaries180) {
-			const bbox = makeBox(coords);
-			const rectIntersect = (b: BoundaryMeta) => !(bbox.west > b.east || b.west > bbox.east || bbox.south > b.north || b.south > bbox.north);
-			if (!boundaries.boundaries180.some(rectIntersect)) {
-				this.data = [];
-				this.streamLines = [];
-				return this; // empty tile
-			}
-		}
-
-		const { upCoords, subCoords } = this._splitCoords(coords);
-		const URLs = this._coordsToURLs(upCoords);
-		let data: DataIntegral[];
-		try {
-			data = await Promise.all(URLs.map(layer.loadDataIntegralFunc));
-		} catch (e) {
-			// abort loading. Leave the tile as it is. Else clear it.
-			if (e.code !== DOMException.ABORT_ERR) {
-				this.data = [];
-				this.streamLines = [];
-			}
-
-			return this;
-		}
-
-		const interpolator = layer.state?.units === 'degree' ? subDataDegree : subData;
-		this.data = data.map((d) => interpolator(blurData(d, layer.style.blurRadius), subCoords)); // preprocess all loaded data
-
-		if (layer.vector) {
-			this._vectorMagnitudesPrepare();
-		}
-
-		if (maskType && tileType === TileType.Mixed) {
-			// const url = 'http://localhost:8080/' + coords.z + '/' + coords.x + '/' + coords.y;
-			const url = layer.state.maskServerURI.replace('{z}', String(coords.z)).replace('{x}', String(coords.x)).replace('{y}', String(coords.y));
-			try {
-				const mask = await layer.loadMaskFunc(url);
-				applyMask(this.data[0], mask, maskType);
-			} catch (e) {
-				this.layer.style.mask = undefined;
-				WXLOG("Can't load Mask. Turned off");
-			}
-		}
-
-		if (this.layer.vector) {
-			this._createStreamLines();
-		}
-
-		return this;
-	} // _load
-
-	protected _splitCoords(coords: Coords): { upCoords: Coords; subCoords?: Coords } {
-		const zDif = coords.z - this.layer.state.meta.maxZoom;
-		if (zDif <= 0) {
-			return { upCoords: coords };
-		}
-		const upCoords = { x: coords.x >>> zDif, y: coords.y >>> zDif, z: this.layer.state.meta.maxZoom };
-		const subCoords = { x: coords.x & ((1 << zDif) - 1), y: coords.y & ((1 << zDif) - 1), z: zDif };
-		return { upCoords, subCoords };
-	} // _splitCoords
-
-	protected _coordsToURLs(upCoords: Coords): string[] {
-		const u = this.layer.state.baseURL.replace('{z}', String(upCoords.z)).replace('{x}', String(upCoords.x)).replace('{y}', String(upCoords.y));
-		return this.layer.dataSource.variables.map((v: string) => u.replace('{var}', v));
-	} // _coordsToURLs
-
 	protected _vectorMagnitudesPrepare(): void {
-		if (this.data.length !== 2) throw 'this.data !== 2';
+		if (this.data.length !== 2) throw new Error('this.data !== 2');
 		// fill data[0] with precalculated vectors' lengths.
 		this.data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
 		const [l, u, v] = this.data; // length, u, v components
@@ -518,10 +542,8 @@ export class WxTile {
 
 	protected _drawVectorsStatic(): void {
 		const { clut, style } = this.layer;
-		if (!this.layer.vector || !clut.DataToKnots) return;
-		if (!style.vectorColor || style.vectorColor === 'none') return;
-		if (!style.vectorType || style.vectorType === 'none') return;
-		if (this.data.length !== 3) throw 'this.data.length !== 3';
+		if (!this.layer.state.vector || !clut.DataToKnots || style.vectorColor === 'none' || style.vectorType === 'none') return;
+		if (this.data.length !== 3) throw new Error('this.data.length !== 3');
 		const [l, u, v] = this.data;
 
 		const { canvasVectorCtx: ctx } = this;
@@ -560,8 +582,8 @@ export class WxTile {
 					case 'fill':
 						ctx.fillStyle = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
-					default:
-						ctx.fillStyle = style.vectorColor; // put color directly from vectorColor
+					default: // put color directly from vectorColor
+						ctx.fillStyle = style.vectorColor;
 						break;
 				} // switch isoline_style
 
@@ -576,10 +598,8 @@ export class WxTile {
 
 	protected _drawDegreesStatic(): void {
 		if (this.layer.state.units !== 'degree') return;
-
 		const { canvasVectorCtx: ctx } = this;
-
-		const addDegrees = this.layer.style.addDegrees ? 0.017453292519943 * this.layer.style.addDegrees : 0;
+		const addDegrees = 0.017453292519943 * this.layer.style.addDegrees;
 
 		ctx.font = '50px arrows';
 		ctx.textAlign = 'center';
@@ -603,8 +623,8 @@ export class WxTile {
 					case 'fill':
 						ctx.fillStyle = RGBtoHEX(this.layer.clut.colorsI[l.raw[di]]); // alfa = 255
 						break;
-					default:
-						ctx.fillStyle = this.layer.style.vectorColor; // put color directly from vectorColor
+					default: // put color directly from vectorColor
+						ctx.fillStyle = this.layer.style.vectorColor;
 						break;
 				} // switch isoline_style
 
@@ -618,7 +638,7 @@ export class WxTile {
 	} // _drawDegree
 
 	protected _createStreamLines(): void {
-		if (this.data.length !== 3) throw 'this.data.length !== 3';
+		if (this.data.length !== 3) throw new Error('this.data.length !== 3');
 		if (this.layer.style.streamLineColor === 'none') return;
 		const factor = this.layer.style.streamLineSpeedFactor || 1;
 

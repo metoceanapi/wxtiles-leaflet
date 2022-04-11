@@ -234,7 +234,7 @@ export interface DataIntegral extends DataPicture {
 function imageToData(image: HTMLImageElement): ImageData {
 	const { width, height } = image;
 	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
-	if (!context) throw 'catastrophe';
+	if (!context) throw new Error('Error: can not create context. Catastrophe');
 	context.drawImage(image, 0, 0);
 	return context.getImageData(0, 0, width, height);
 }
@@ -247,7 +247,7 @@ function dataToIntegral(imData: ImageData): DataIntegral {
 	if (imData.data[34] < 1) {
 		WXLOG('Warning: image is in too old format. Check the version of the Splitter.');
 	}
-	
+
 	// picTile contains bytes RGBARGBARGBA ...
 	// we need RG and don't need BA, so output is a 16 byte array picData with every second value dropped.
 	const imbuf = new Uint16Array(imData.data.buffer);
@@ -510,4 +510,8 @@ export function WXLOG(...str: any) {
 	if (wxlogging) {
 		console.trace(...str);
 	}
+}
+
+export function refineColor(c: string): string {
+	return c !== 'none' && c.length < 7 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c;
 }

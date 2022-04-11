@@ -14,6 +14,7 @@ import {
 	Legend,
 	ColorStylesStrict,
 	fetchJson,
+	WxTilesLayerSettings,
 } from '../src/wxtiles';
 import '../src/wxtiles.css';
 
@@ -23,7 +24,7 @@ let config: Config; // application config
 let styles: ColorStylesStrict; // all available styles. Not every style is sutable for every layer.
 let globalLayer: WxTilesLayer | undefined; // current layer
 
-async function fillDataSets() {
+async function fillDataSets(defaultDataset?: string, deafaultVariable?: string) {
 	let datasetsNames: string[];
 
 	try {
@@ -41,10 +42,12 @@ async function fillDataSets() {
 		selectDataSetEl.appendChild(opt);
 	}
 
-	await fillVariables_selectDataSetEl_onchange();
+	defaultDataset && datasetsNames.find((n) => n === defaultDataset) && (selectDataSetEl.value = defaultDataset);
+
+	await fillVariables_selectDataSetEl_onchange(deafaultVariable);
 }
 
-async function fillVariables_selectDataSetEl_onchange() {
+async function fillVariables_selectDataSetEl_onchange(defaultVariable?: string): Promise<void> {
 	const oldVariable = selectVariableEl.value;
 	selectVariableEl.innerHTML = '';
 	let meta: Meta;
@@ -72,11 +75,13 @@ async function fillVariables_selectDataSetEl_onchange() {
 		selectVariableEl.value = oldVariable;
 	}
 
-	loadVariable_selectVariableEl_onchange();
+	defaultVariable && meta.variables.find((n) => n === defaultVariable) && (selectVariableEl.value = defaultVariable);
+
+	await loadVariable_selectVariableEl_onchange();
 }
 
-async function loadVariable_selectVariableEl_onchange() {
-	stopPlay();
+async function loadVariable_selectVariableEl_onchange(): Promise<void> {
+	await stopPlay();
 
 	const variable = selectVariableEl.value;
 	const variables = [variable];
@@ -84,7 +89,7 @@ async function loadVariable_selectVariableEl_onchange() {
 		variables.push(variable.replace('eastward', 'northward'));
 	}
 
-	const layerSettings = {
+	const layerSettings: WxTilesLayerSettings = {
 		dataSource: {
 			serverURI: config.dataServer, // server to fetch data from
 			maskServerURI: config.dataServer.replace(/\/data\/?/i, '/mask/{z}/{x}/{y}'),
@@ -100,6 +105,7 @@ async function loadVariable_selectVariableEl_onchange() {
 		// the signal 'setupcomplete' is fired when loading is finished.
 		// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
 		// lazy: true,
+		// L.GridLayerOptions leaflet's options for the layer
 		options: {
 			opacity: 1,
 		},
@@ -108,18 +114,18 @@ async function loadVariable_selectVariableEl_onchange() {
 	// save in order to delete old layer
 	const oldLayer = globalLayer; // this is to store oldLayer in order a user change layers too fast.
 	globalLayer = CreateWxTilesLayer(layerSettings);
-	await globalLayer.getSetupCompletePromise(); // wait for meta info to be loaded. doesn't mean 'tiles are loaded' !!!
 	globalLayer.addTo(map);
-
+	oldLayer && globalLayer.once('load', () => layerControl.removeLayer(oldLayer.removeFrom(map))); // delete old layer
 	layerControl.addOverlay(globalLayer, layerSettings.dataSource.name);
-	if (oldLayer)
-		globalLayer.once('load', () => {
-			oldLayer.removeFrom(map);
-			layerControl.removeLayer(oldLayer);
-		}); // delete old layer
-	globalLayer.setTime(selectTimeEl.value !== '' ? selectTimeEl.value : new Date()); // try to preserve 'time' from current time of selectTimeEl
+
+	// IMPORTANT: wait for meta info to be loaded (doesn't mean 'tiles are loaded' !!!)
+	// 1. must be befor any other operation on the layer
+	// 2. must be after layer is added to the map
+	await globalLayer.getSetupCompletePromise();
+
 	fillTimes(globalLayer);
 	fillStyles(globalLayer);
+	await globalLayer.setTime(selectTimeEl.value !== '' ? selectTimeEl.value : new Date()); // try to preserve 'time' from current time of selectTimeEl
 }
 
 function fillTimes(layer: WxTilesLayer) {
@@ -136,30 +142,31 @@ function fillTimes(layer: WxTilesLayer) {
 	selectTimeEl.value = layer.getTime();
 }
 
-function startPlay() {
+function startPlay(): void {
 	if (!globalLayer) return;
 	buttonPlayStopEl.textContent = 'stop';
 	globalLayer.setTimeAnimationMode(+inputCoarseLevelEl.value);
+
+	// function to be called every timestep
 	(async function nextTimeStep() {
 		if (!globalLayer) return;
 		if (buttonPlayStopEl.textContent === 'stop') {
 			const start = Date.now();
 			await globalLayer.setTime(selectTimeEl.value);
+			updateInfoPanel(undefined);
 			selectTimeEl.selectedIndex++;
 			selectTimeEl.selectedIndex %= selectTimeEl.length;
 			const dt = +inputAnimDelayEl.value - (Date.now() - start);
 			setTimeout(nextTimeStep, dt < 0 ? 0 : dt);
-			updateInfoPanel(undefined);
 		}
 	})();
 }
 
-function stopPlay() {
+async function stopPlay() {
 	if (buttonPlayStopEl.textContent !== 'play') {
 		buttonPlayStopEl.textContent = 'play';
-		globalLayer?.unsetTimeAnimationMode();
+		return globalLayer?.unsetTimeAnimationMode();
 	}
-	return;
 }
 
 function addOption(baseStyle: string, value = baseStyle) {
@@ -222,8 +229,7 @@ function onStyleChange_selectStyleEl_onchange() {
 		}
 	}
 	globalLayer.setStyle(selectStyleEl.value);
-	const curStyleName = globalLayer.getStyle();
-	const curStyle = styles[curStyleName];
+	const curStyle = globalLayer.getStyle();
 	customStyleEl.value = JSON.stringify(JSONsort(curStyle), null, '    ');
 	const legend = globalLayer.getLegendData(legendCanvasEl.width - 50);
 	if (!legend) return;
@@ -292,8 +298,9 @@ function drawLegend({ legend, canvas }: { legend: Legend; canvas: HTMLCanvasElem
 		ctx.lineTo(tick.pos + trSize + startX + 1, halfHeight);
 		ctx.fillText(tick.dataString, tick.pos + trSize + startX + 1, halfHeight + 11);
 	}
+
 	ctx.font = '12px sans-serif';
-	const txt = globalLayer.getStyleName() + ' (' + legend.units + ')';
+	const txt = `${globalLayer.getStyle().name} (${legend.units})`;
 	ctx.fillText(txt, 13, height - 5);
 	ctx.stroke();
 
@@ -306,16 +313,16 @@ function updateInfoPanel(e: L.LeafletMouseEvent | undefined) {
 	// save 'e'
 	if (e) oldE = e;
 	else e = oldE; // restore 'e'
-	let content = '' + `${e.latlng}<br>`;
+	let content = `${e.latlng}<br>`;
 	map.eachLayer((layer) => {
 		if (layer instanceof WxTilesLayer) {
 			const tile = layer.getLayerInfoAtLatLon(e!.latlng);
 			const { min, max } = layer.getMinMax();
-
+			const ltime = layer.getTime();
 			content += tile
 				? `<div>
 				<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-				${layer.dataSource.name}=${tile.inStyleUnits.map((d) => d.toFixed(2)).join(',')} ${tile.units} (${min.toFixed(2)}, ${max.toFixed(2)})
+				${layer.dataSource.name}=${tile.inStyleUnits.map((d) => d.toFixed(2)).join(',')} ${tile.styleUnits} (${min.toFixed(2)}, ${max.toFixed(2)}), time: ${ltime}<br>
 				</div>`
 				: '';
 		}
@@ -334,7 +341,7 @@ function popupInfo(e: L.LeafletMouseEvent) {
 				? `<div>
 					<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
 					${layer.dataSource.name}<br>
-					(in style Units = ${tile.inStyleUnits} ${tile.units})<br>
+					(in style Units = ${tile.inStyleUnits} ${tile.styleUnits})<br>
 					(in data Units = ${tile.data} ${layer.state.units})<br>
 					(time:${time})<br>
 					(instance:${layer.state.instance})<br>
@@ -430,7 +437,7 @@ async function start() {
 
 	styles = WxGetColorStyles(); // all available styles. Not every style is sutable for this layer.
 
-	fillDataSets();
+	fillDataSets('gfs.global', 'wind.speed.eastward.at-10m');
 
 	map.on('zoom', stopPlay); // stop time animation on zoom
 	map.on('mousemove', updateInfoPanel);
@@ -469,11 +476,12 @@ customStyleButtonEl.addEventListener('click', () => {
 });
 
 const selectTimeEl = document.getElementById('selectTime') as HTMLSelectElement;
-selectTimeEl.addEventListener('change', () => {
+selectTimeEl.addEventListener('change', async () => {
 	if (!globalLayer) return;
-	if (buttonPlayStopEl.textContent === 'stop') stopPlay();
-	globalLayer.setTime(selectTimeEl.value);
+	if (buttonPlayStopEl.textContent === 'stop') await stopPlay();
+	await globalLayer.setTime(selectTimeEl.value);
 	selectTimeEl.value = globalLayer.getTime();
+	updateInfoPanel(undefined);
 });
 
 const buttonHoldEl = document.getElementById('buttonHold') as HTMLButtonElement;
