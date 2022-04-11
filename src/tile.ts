@@ -406,10 +406,11 @@ export class WxTile {
 
 	// x, y - pixel on tile
 	getPixelInfo({ x, y }: { x: number; y: number }): { raw: number[]; data: number[] } | undefined {
-		if (!this.data.length) return;
+		const index = (y + 1) * 258 + (x + 1);
+		if (!this.data[0]?.raw[index]) return; // check if data is loaded and the pixel is not empty
 		return {
-			raw: this.data.map((data) => data.raw[(y + 1) * 258 + (x + 1)]),
-			data: this.data.map((data) => data.raw[(y + 1) * 258 + (x + 1)] * data.dmul + data.dmin),
+			raw: this.data.map((data) => data.raw[index]),
+			data: this.data.map((data) => data.raw[index] * data.dmul + data.dmin),
 		};
 	} // getData
 
