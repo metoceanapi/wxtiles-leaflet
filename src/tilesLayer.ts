@@ -127,16 +127,18 @@ export class WxTilesLayer extends L.GridLayer {
 		WXLOG('Creating a WxTiles layer:', dataSource.name, '. Params:', JSON.stringify(settings));
 
 		if (
-			!dataSource ||
-			!dataSource.ext ||
+			!dataSource?.ext ||
 			!dataSource.dataset ||
 			!dataSource.name ||
 			!dataSource.serverURI ||
 			!dataSource.styleName ||
-			!Array.isArray(dataSource.variables)
+			!Array.isArray(dataSource.variables) ||
+			dataSource.variables.length < 1 ||
+			dataSource.variables.length > 2
 		) {
-			WXLOG('dataSource is wrong!');
-			throw new Error('dataSource is wrong!');
+			const err = 'WxTilesLayer: dataSource is wrong!';
+			WXLOG(err);
+			throw new Error(err);
 		}
 
 		this.dataSource = dataSource;
@@ -255,13 +257,13 @@ export class WxTilesLayer extends L.GridLayer {
 		return !controller.signal.aborted;
 	} // _requestReloadTiles
 
-	setStyle(styleName: string): void {
+	async setStyle(styleName: string): Promise<void> {
 		WXLOG('setStyle(', styleName, ') for ', this.dataSource.name);
 		if (styleName === 'custom' || styleName !== this.dataSource.styleName) {
 			// if styleName is 'custom' or different from current styleName
 			this._setStyleAndCLUT(styleName);
 			this._checkAndStartVectorAnimation();
-			this._requestReloadTilesAndRedraw(); // with redraw
+			await this._requestReloadTilesAndRedraw(); // with redraw
 		}
 
 		WXLOG('setStyle(', styleName, '): "' + this.dataSource.styleName + '" for ' + this.dataSource.name + ' complete.');
@@ -446,13 +448,13 @@ export class WxTilesLayer extends L.GridLayer {
 	}
 
 	/** restore maximum zoom level */
-	unsetTimeAnimationMode(): void {
+	async unsetTimeAnimationMode(): Promise<boolean> {
 		WXLOG('unsetTimeAnimationMode');
 		if (this.oldMaxZoom) {
 			this.state.meta.maxZoom = this.oldMaxZoom;
 		}
 
-		this._requestReloadTilesAndRedraw();
+		return this._requestReloadTilesAndRedraw();
 	}
 
 	/** min, max values of the loaded data */

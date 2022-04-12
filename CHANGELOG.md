@@ -13,6 +13,10 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 - style.vectorFactor
 
+### FIX
+- remastered async functions
+- masking spoiled original (cached) data
+
 ## [1.0.14] - 2021-12-15
 
 ### FIX
