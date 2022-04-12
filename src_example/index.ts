@@ -479,7 +479,9 @@ const selectTimeEl = document.getElementById('selectTime') as HTMLSelectElement;
 selectTimeEl.addEventListener('change', async () => {
 	if (!globalLayer) return;
 	if (buttonPlayStopEl.textContent === 'stop') await stopPlay();
+	selectTimeEl.style.backgroundColor = '#fa0';
 	await globalLayer.setTime(selectTimeEl.value);
+	selectTimeEl.style.backgroundColor = '#fff';
 	selectTimeEl.value = globalLayer.getTime();
 	updateInfoPanel(undefined);
 });
