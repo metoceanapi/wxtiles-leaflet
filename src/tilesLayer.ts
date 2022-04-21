@@ -310,6 +310,22 @@ export class WxTilesLayer extends L.GridLayer {
 		return this.setupCompletePromise;
 	}
 
+	/**  check if data has been changed since last init */
+	async checkDataChanged(): Promise<boolean> {
+		WXLOG('checkDataChanged');
+		try {
+			const instances = await fetchJson(this.state.originURI + 'instances.json');
+			const instance = instances[instances.length - 1] + '/';
+			if (this.state.instance !== instance) return true;
+			// instance didn't change. Check meta.times
+			const meta = await fetchJson(this.state.originURI + instance + 'meta.json');
+			return this.state.meta.times.toString() !== meta.times.toString();
+		} catch (e) {
+			// if layer was not initialized yet, it's not changed
+			return false;
+		}
+	}
+
 	/** get all the information about tile and point it represents */
 	getLayerInfoAtLatLon(latlng: L.LatLngExpression): WxTileInfo | undefined {
 		if (!this._map) return;
