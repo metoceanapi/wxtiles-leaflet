@@ -116,17 +116,30 @@ export interface Converter {
 }
 
 export function makeConverter(from: string, to: string, customUnits?: Units): Converter {
-	const localUnitsCopy = customUnits ? Object.assign({}, _units, customUnits) : _units;
-	if (!localUnitsCopy || !from || !to || from === to || !localUnitsCopy[from] || !localUnitsCopy[to] || localUnitsCopy[from][0] !== localUnitsCopy[to][0]) {
-		WXLOG(from === to ? 'Trivial converter:' : 'Inconvertible units. Default converter is used:', from, ' -> ', to);
-		const c = (x: number) => x;
-		c.trivial = true;
-		return c; // Inconvertible or trivial
+	WXLOG('makeConverter: From=', from, ' To=', to);
+	const c = (x: number) => x;
+	c.trivial = true;
+	if (from === to) {
+		WXLOG('Trivial converter');
+		return c; // trivial
 	}
 
-	WXLOG('Converter: From:', from, ' To:', to);
-	const a = localUnitsCopy[from][1] / localUnitsCopy[to][1];
-	const b = (localUnitsCopy[from][2] || 0) / localUnitsCopy[to][1] - (localUnitsCopy[to][2] || 0) / localUnitsCopy[to][1];
+	const localUnitsCopy = Object.assign({}, _units, customUnits);
+	if (!localUnitsCopy[from] || !localUnitsCopy[to]) {
+		WXLOG('Inconvertible units. Trivial converter');
+		return c; // Inconvertible
+	}
+
+	const [fromUnit, fromFactor, fromOffset] = localUnitsCopy[from];
+	const [toUnit, toFactor, toOffset] = localUnitsCopy[to];
+
+	if (fromUnit !== toUnit || !fromFactor || !toFactor) {
+		WXLOG('Inconvertible units. Trivial converter');
+		return c; // trivial
+	}
+
+	const a = fromFactor / toFactor;
+	const b = ((fromOffset || 0) - (toOffset || 0)) / toFactor;
 	return b ? (x: number) => a * x + b : (x: number) => a * x;
 }
 
