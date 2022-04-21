@@ -18,6 +18,8 @@ import {
 } from '../src/wxtiles';
 import '../src/wxtiles.css';
 
+import { Editor } from './visualStyleEditor';
+
 let map: L.Map;
 let layerControl: L.Control.Layers;
 let config: Config; // application config
@@ -167,6 +169,8 @@ async function stopPlay() {
 		buttonPlayStopEl.textContent = 'play';
 		return globalLayer?.unsetTimeAnimationMode();
 	}
+
+	return;
 }
 
 function addOption(baseStyle: string, value = baseStyle) {
@@ -192,31 +196,11 @@ function fillStyles(layer: WxTilesLayer) {
 	onStyleChange_selectStyleEl_onchange();
 }
 
-function JSONsort(o: any) {
-	if (Array.isArray(o)) {
-		return o.map(JSONsort);
-	} else if (typeof o === 'object' && o !== null) {
-		const keys = Object.keys(o)
-			// .map((a) => a.toUpperCase())
-			.sort((a, b) => {
-				const aa = a.toUpperCase();
-				const bb = b.toUpperCase();
-				return aa == bb ? 0 : aa > bb ? 1 : -1;
-			});
-		return keys.reduce((a, k) => {
-			a[k] = JSONsort(o[k]);
-			return a;
-		}, {});
-	}
-	return o;
-}
-
 function onStyleChange_selectStyleEl_onchange() {
 	if (!globalLayer) return;
 	if (selectStyleEl.value === 'custom') {
-		try {
-			styles.custom = JSON.parse(customStyleEl.value);
-		} catch {
+		const style = editor.getStyle();
+		if (style instanceof Error) {
 			console.log('Wrong custom style');
 			const ctx = legendCanvasEl.getContext('2d');
 			if (!ctx) return;
@@ -227,10 +211,13 @@ function onStyleChange_selectStyleEl_onchange() {
 			ctx.stroke();
 			return;
 		}
+		styles.custom = style; //JSON.parse(customStyleTextAreaEl.value);
 	}
+
 	globalLayer.setStyle(selectStyleEl.value);
 	const curStyle = globalLayer.getStyle();
-	customStyleEl.value = JSON.stringify(JSONsort(curStyle), null, '    ');
+	// customStyleTextAreaEl.value = JSON.stringify(JSONsort(curStyle), null, '    ');
+	editor.setStyle(curStyle);
 	const legend = globalLayer.getLegendData(legendCanvasEl.width - 50);
 	if (!legend) return;
 	drawLegend({ legend, canvas: legendCanvasEl });
@@ -393,6 +380,11 @@ async function start() {
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
 	map = L.map('map', config.map);
 
+	const styleEditorEl = document.getElementById('styleEditor');
+	if (!styleEditorEl) {
+		throw new Error('styleEditorEl not found');
+	}
+
 	// Setup WxTiles lib
 	WxTilesLogging(true); // use wxtiles logging -> console.log
 	CreateWxTilesWatermark({ URI: 'res/wxtiles-logo.png', position: 'topright' }).addTo(map);
@@ -408,7 +400,7 @@ async function start() {
 	createControl({ position: 'topleft', htmlID: 'legend' }).addTo(map);
 	createControl({ position: 'topleft', htmlID: 'layerPanel' }).addTo(map);
 	createControl({ position: 'topleft', htmlID: 'styleEditor' }).addTo(map);
-	createControl({ position: 'bottomleft', htmlID: 'infoPanel' }).addTo(map);
+	createControl({ position: 'bottomright', htmlID: 'infoPanel' }).addTo(map);
 
 	const wxlibCustomSettings: any = {};
 	try {
@@ -438,10 +430,18 @@ async function start() {
 	styles = WxGetColorStyles(); // all available styles. Not every style is sutable for this layer.
 
 	fillDataSets('gfs.global', 'wind.speed.eastward.at-10m');
+	// fillDataSets('gfs.global', 'air.temperature.at-2m');
 
 	map.on('zoom', stopPlay); // stop time animation on zoom
 	map.on('mousemove', updateInfoPanel);
 	map.on('click', popupInfo);
+	editor = new Editor(map, styleEditorEl, selectStyleEl, { id: 'visualCustomStyleDivId', className: 'visualCustomStyleDivClass' });
+	editor.onchange = (style) => {
+		selectStyleEl.value = 'custom';
+		styles['custom'] = style;
+		// globalLayer?.setStyle('custom');
+		onStyleChange_selectStyleEl_onchange();
+	};
 }
 
 const selectDataSetEl = document.getElementById('selectDataSet') as HTMLSelectElement;
@@ -457,23 +457,31 @@ selectStyleEl.addEventListener('change', onStyleChange_selectStyleEl_onchange);
 
 const legendCanvasEl = document.getElementById('legend') as HTMLCanvasElement;
 
-const customStyleEl = document.getElementById('customStyle') as HTMLTextAreaElement;
-customStyleEl.addEventListener('change', () => {
-	selectStyleEl.value = 'custom';
-	onStyleChange_selectStyleEl_onchange();
-});
+// const customStyleDivEl = document.getElementById('customStyleDiv') as HTMLDivElement;
+// const customStyleTextAreaEl = document.getElementById('customStyleTextArea') as HTMLTextAreaElement;
+// const editor = createEditor(customStyleDivEl, 'visualCustomStyleDivId', 'visualCustomStyleDivClass');
+let editor: Editor; // = new Editor(map, customStyleDivEl, 'visualCustomStyleDivId', 'visualCustomStyleDivClass');
+// editor.onchange = (style) => {
+// 	selectStyleEl.value = 'custom';
+// 	customStyleTextAreaEl.value = JSON.stringify(style, null, '    ');
+// 	onStyleChange_selectStyleEl_onchange();
+// };
+// customStyleTextAreaEl.addEventListener('change', () => {
+// 	selectStyleEl.value = 'custom';
+// 	onStyleChange_selectStyleEl_onchange();
+// });
 
-const customStyleButtonEl = document.getElementById('customStyleButton')! as HTMLButtonElement;
-customStyleButtonEl.addEventListener('click', () => {
-	if (customStyleEl.style.display != 'none') {
-		customStyleEl.style.display = 'none';
-		customStyleButtonEl.innerHTML = 'show Custom Style Editor';
-	} else {
-		customStyleEl.style.display = 'block';
-		customStyleButtonEl.innerHTML = 'update Custom Style & Hide';
-		selectStyleEl.value = 'custom';
-	}
-});
+// const customStyleButtonEl = document.getElementById('customStyleButton')! as HTMLButtonElement;
+// customStyleButtonEl.addEventListener('click', () => {
+// 	if (customStyleDivEl.style.display != 'none') {
+// 		customStyleDivEl.style.display = 'none';
+// 		customStyleButtonEl.innerHTML = 'show Custom Style Editor';
+// 	} else {
+// 		customStyleDivEl.style.display = 'block';
+// 		customStyleButtonEl.innerHTML = 'update Custom Style & Hide';
+// 		selectStyleEl.value = 'custom';
+// 	}
+// });
 
 const selectTimeEl = document.getElementById('selectTime') as HTMLSelectElement;
 selectTimeEl.addEventListener('change', async () => {

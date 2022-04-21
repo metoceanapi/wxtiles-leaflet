@@ -9,6 +9,19 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### Added
+
+- A new visual 'custom' style editor
+
+### REVERT
+
+- checkDataChanged
+
+### Fixed
+
+- addDegree in \_createStreamLines
+- error handling in makeConverter
+
 ## [1.0.15] - 2022-04-12
 
 ### add
@@ -16,6 +29,7 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 - style.vectorFactor
 
 ### FIX
+
 - remastered async functions
 - masking spoiled original (cached) data
 
