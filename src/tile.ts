@@ -649,8 +649,6 @@ export class WxTile {
 		if (this.data.length !== 3) throw new Error('this.data.length !== 3');
 		const { style } = this.layer;
 		if (style.streamLineColor === 'none') return;
-		const factor = style.streamLineSpeedFactor || 1;
-		const addDegrees = style.addDegrees ? 0.017453292519943 * style.addDegrees : 0;
 
 		// idea is taken from the LIC (linear integral convolution) algorithm and the 'multipartical vector field visualisation'
 		this.streamLines = []; // an array of stremllines. Each section of streamline represents a position and size of a particle.
@@ -659,6 +657,8 @@ export class WxTile {
 		// does 20 moc steps and stores the point into streamline (sLine).
 		// Algo does two passes: forward and backward, to cope boundaries and improve visual effect.
 		const [l, u, v] = this.data;
+		const factor = (style.streamLineSpeedFactor || 1) / l.dmax;
+		const addDegrees = style.addDegrees ? 0.017453292519943 * style.addDegrees : 0;
 		const gridStep = 64;
 		const steps = 300;
 		for (let y = 0; y <= 256; y += gridStep) {
@@ -667,32 +667,47 @@ export class WxTile {
 				const sLine: SLine = []; // streamline
 				let xforw = x;
 				let yforw = y;
+				let oldDi = -1; // previous di. The first di will never be -1
+				let dx = 0;
+				let dy = 0;
 				for (let i = 0; i <= steps && xforw >= 0 && xforw <= 256 && yforw >= 0 && yforw <= 256; i++) {
 					// forward
-					!(i % (steps / 6)) && sLine.push({ x: ~~xforw, y: ~~yforw }); // push each (steps/6)-th point // 7 points max
+					if (!(i % (steps / 10))) sLine.push({ x: ~~xforw, y: ~~yforw }); // push each (steps/10)-th point // 7 points max
 					const di = ~~xforw + 1 + (~~yforw + 1) * 258;
-					if (!l.raw[di]) break; // NODATA
-					const dl = l.dmin + l.raw[di] * l.dmul;
-					const du = u.dmin + u.raw[di] * u.dmul;
-					const dv = v.dmin + v.raw[di] * v.dmul;
-					const ang = Math.atan2(du, dv) + addDegrees;
-
-					xforw += (factor * dl * Math.sin(ang)) / l.dmax;
-					yforw -= (factor * dl * Math.cos(ang)) / l.dmax; // negative - due to Lat goes up but screen's coordinates go down
+					if (di !== oldDi) {
+						// calc dx, dy only if di changed
+						if (!l.raw[di]) break; // NODATA - stop streamline creation
+						oldDi = di; // save old di
+						const dl = l.dmin + l.raw[di] * l.dmul;
+						const du = u.dmin + u.raw[di] * u.dmul;
+						const dv = v.dmin + v.raw[di] * v.dmul;
+						const ang = Math.atan2(du, dv) + addDegrees;
+						dx = factor * dl * Math.sin(ang);
+						dy = factor * dl * Math.cos(ang);
+					}
+					xforw += dx;
+					yforw -= dy; // negative - due to Lat goes up but screen's coordinates go down
 				} // for i forward
 				let xback = x;
 				let yback = y;
+				oldDi = -1; // previous di. The first di will never be -1
 				for (let i = 1; i <= steps && xback >= 0 && xback <= 256 && yback >= 0 && yback <= 256; i++) {
 					// backward // i = 1 becouse otherwise it produces the same first point hence visual artefact! 2 hours debugging!
-					!(i % (steps / 6)) && sLine.unshift({ x: ~~xback, y: ~~yback }); // push each (steps / 6)-th point // 6 points max
+					if (!(i % (steps / 10))) sLine.unshift({ x: ~~xback, y: ~~yback }); // push each (steps/10)-th point // 6 points max
 					const di = ~~xback + 1 + (~~yback + 1) * 258;
-					if (!l.raw[di]) break; // NODATA
-					const dl = l.dmin + l.raw[di] * l.dmul;
-					const du = u.dmin + u.raw[di] * u.dmul;
-					const dv = v.dmin + v.raw[di] * v.dmul;
-					const ang = Math.atan2(du, dv) + addDegrees;
-					xback -= (factor * dl * Math.sin(ang)) / l.dmax;
-					yback += (factor * dl * Math.cos(ang)) / l.dmax; // negative - due to Lat goes up but screen's coordinates go down
+					if (di !== oldDi) {
+						// calc dx, dy only if di changed
+						if (!l.raw[di]) break; // NODATA - stop streamline creation
+						oldDi = di; // save old di
+						const dl = l.dmin + l.raw[di] * l.dmul;
+						const du = u.dmin + u.raw[di] * u.dmul;
+						const dv = v.dmin + v.raw[di] * v.dmul;
+						const ang = Math.atan2(du, dv) + addDegrees;
+						dx = factor * dl * Math.sin(ang);
+						dy = factor * dl * Math.cos(ang);
+					}
+					xback -= dx;
+					yback += dy; // positive - due to Lat goes up but screen's coordinates go down
 				} // for i backward
 				sLine.length > 2 && this.streamLines.push(sLine);
 			} // for x
