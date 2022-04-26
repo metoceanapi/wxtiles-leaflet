@@ -373,29 +373,46 @@ export class WxTile {
 
 		const ctx = this.canvasVectorAnimationCtx; // .getContext('2d');
 		ctx.clearRect(0, 0, 256, 256); // transfered to this.draw
-		if (this.layer.style.streamLineColor === 'none') {
+		const { clut, style } = this.layer;
+		const [l, u, v] = this.data;
+
+		if (style.streamLineColor === 'none') {
 			this.streamLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
-		const baseColor = this.layer.style.streamLineColor.substr(0, 7);
+
 		timeStemp = timeStemp >> 7;
 		for (let i = 0; i < this.streamLines.length; ++i) {
 			const sLine = this.streamLines[i];
 			const sSize = sLine.length - 1;
 			// TODO:
 			// seed - is the most opaque piece
-			// let seed = (timeStemp + sLine[0].x + sLine[0].y) % (sSize * 2); // to make more chaos // regular visual patterns make animation less smooth
 			let seed = (timeStemp + (1 + sLine[0].x) * (1 + sLine[0].y)) % 30;
 			for (let k = 0; k < sSize; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
-				// if (pt < k) pt += sSize;
-				let t = 1 - (seed - k) / sSize;
+				let t = 1 - (seed - k) / sSize; // TODO:
 				if (t < 0 || t > 1) t = 0;
-				const col = (~~(t * 255)).toString(16);
-				ctx.strokeStyle = baseColor + (col.length < 2 ? '0' + col : col);
+				const col = (~~(t * 255)).toString(16).padStart(2, '0');
 				const w = 1 + ~~((1.2 - t) * 5);
 				ctx.lineWidth = w;
+
+				const di = p0.x + 1 + (p0.y + 1) * 258;
+				let baseColor;
+				switch (style.streamLineColor) {
+					case 'inverted':
+						baseColor = RGBtoHEX(~clut.colorsI[l.raw[di]]); // alfa = 255
+						break;
+					case 'fill':
+						baseColor = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
+						break;
+					default: // put color directly from vectorColor
+						baseColor = style.streamLineColor;
+						break;
+				} // switch isoline_style
+
+				ctx.strokeStyle = baseColor + col; //(col.length < 2 ? '0' + col : col);
+
 				ctx.beginPath();
 				ctx.moveTo(p0.x, p0.y);
 				ctx.lineTo(p1.x, p1.y);
@@ -526,26 +543,39 @@ export class WxTile {
 	protected _drawStreamLinesStatic(): void {
 		if (!this.streamLines.length || !this.layer.style.streamLineStatic) return;
 		const { canvasVectorAnimationCtx: ctx } = this;
-		if (this.layer.style.streamLineColor === 'none') {
+		const { clut, style } = this.layer;
+		if (style.streamLineColor === 'none') {
 			this.streamLines = []; // this can happen if a new style was set up after the layer was loaded.
 			return;
 		}
+		const [l] = this.data;
 
 		ctx.lineWidth = 2;
-		ctx.strokeStyle = this.layer.style.streamLineColor; // color
-
-		ctx.beginPath();
 		for (let i = this.streamLines.length; i--; ) {
 			const sLine = this.streamLines[i];
 			for (let k = 0; k < sLine.length - 1; ++k) {
 				const p0 = sLine[k];
 				const p1 = sLine[k + 1];
+				const di = p0.x + 1 + (p0.y + 1) * 258;
+
+				switch (style.streamLineColor) {
+					case 'inverted':
+						ctx.strokeStyle = RGBtoHEX(~clut.colorsI[l.raw[di]]); // alfa = 255
+						break;
+					case 'fill':
+						ctx.strokeStyle = RGBtoHEX(clut.colorsI[l.raw[di]]); // alfa = 255
+						break;
+					default: // put color directly from vectorColor
+						ctx.strokeStyle = style.streamLineColor;
+						break;
+				} // switch isoline_style
+
+				ctx.beginPath();
 				ctx.moveTo(p0.x, p0.y);
 				ctx.lineTo(p1.x, p1.y);
+				ctx.stroke();
 			}
 		}
-
-		ctx.stroke();
 	}
 
 	protected _drawVectorsStatic(): void {

@@ -50,12 +50,12 @@ export class Editor {
 	vectorTypeSelect: HTMLSelectElement; // string
 
 	vectorColorSelect: HTMLSelectElement; // string
-	vectorColorInput: HTMLInputElement;
+	vectorColorInput: HTMLInputElement; // string
 
 	vectorFactorInput: HTMLInputElement; // number
 
+	streamLineColorSelect: HTMLSelectElement; // string
 	streamLineColorInput: HTMLInputElement; // string
-	streamLineColorVisibleInput: HTMLInputElement; // boolean
 
 	streamLineSpeedFactorInput: HTMLInputElement; // number
 
@@ -159,36 +159,34 @@ export class Editor {
 			return el;
 		};
 
+		const addSelectInput = (id: string): [HTMLSelectElement, HTMLInputElement] => {
+			const select = addSelect({ id: id + 'Select', br: false, opts: ['', 'inverted', 'fill', 'none', 'custom'] });
+			const input = addInput({ id: id + 'Input', type: 'color', onEvent: 'none' });
+			input.addEventListener('change', () => {
+				select.value = 'custom';
+				this._onDivChange();
+			});
+			return [select, input];
+		};
+
 		this.parentInput = addInput({ id: 'parentInput', type: 'text' });
 		this.nameInput = addInput({ id: 'nameInput', type: 'text' });
 		this.fillSelect = addSelect({ id: 'fillSelect', opts: ['', 'gradient', 'solid', 'none'] });
 
-		this.isolineColorSelect = addSelect({ id: 'isolineColorSelect', br: false, opts: ['', 'inverted', 'fill', 'none', 'custom'] });
-		this.isolineColorInput = addInput({ id: 'isolineColorInput', type: 'color', onEvent: 'none' });
-
-		// this.isolineColorSelect.addEventListener('change', () => {
-		// 	this.isolineColorInput.disabled = this.isolineColorSelect.value !== 'custom';
-		// });
-		this.isolineColorInput.addEventListener('change', () => {
-			this.isolineColorSelect.value = 'custom';
-			this._onDivChange();
-		});
+		[this.isolineColorSelect, this.isolineColorInput] = addSelectInput('isolineColor');
 		this.isolineTextInput = addInput({ id: 'isolineTextInput', type: 'checkbox' });
-		this.vectorTypeSelect = addSelect({ id: 'vectorTypeSelect', opts: ['', 'arrows', 'barbs', 'none'] });
-		this.vectorColorSelect = addSelect({ id: 'vectorColorSelect', br: false, opts: ['', 'inverted', 'fill', 'none', 'custom'] });
-		this.vectorColorInput = addInput({ id: 'vectorColorInput', type: 'color', onEvent: 'none' });
-		this.vectorColorInput.addEventListener('change', () => {
-			this.vectorColorSelect.value = 'custom';
-			this._onDivChange();
-		});
+
 		this.vectorFactorInput = addInput({ id: 'vectorFactorInput', type: 'number', min: '0.1', max: '10', step: '0.1' });
-		this.streamLineColorVisibleInput = addInput({ id: 'streamLineColorVisibleInput', br: false, type: 'checkbox' });
-		this.streamLineColorVisibleInput.addEventListener('change', () => (this.streamLineColorInput.disabled = !this.streamLineColorVisibleInput.checked));
-		this.streamLineColorInput = addInput({ id: 'streamLineColorInput', type: 'color' });
+		this.vectorTypeSelect = addSelect({ id: 'vectorTypeSelect', opts: ['', 'arrows', 'barbs', 'none'] });
+		[this.vectorColorSelect, this.vectorColorInput] = addSelectInput('vectorColor');
+		[this.streamLineColorSelect, this.streamLineColorInput] = addSelectInput('streamLineColor');
+
 		this.streamLineSpeedFactorInput = addInput({ id: 'streamLineSpeedFactorInput', type: 'number', min: '0.1', max: '10', step: '0.1' });
 		this.streamLineStaticInput = addInput({ id: 'streamLineStaticInput', type: 'checkbox' });
+
 		this.showBelowMinInput = addInput({ id: 'showBelowMinInput', type: 'checkbox' });
 		this.showAboveMaxInput = addInput({ id: 'showAboveMaxInput', type: 'checkbox' });
+
 		this.colorSchemeSelect = addSelect({ id: 'colorSchemeSelect', opts: Object.keys(WxGetColorSchemes()), onEvent: 'none' });
 		this.colorSchemeSelect.addEventListener('change', () => {
 			const style = this.getStyle();
@@ -197,9 +195,11 @@ export class Editor {
 			this.colorsInput.value = '';
 			this._onDivChange();
 		});
+
 		this.colorsInput = addInput({ id: 'colorsInput', type: 'text' }); // TODO:
 		this.colorMapInput = addInput({ id: 'colorMapInput', type: 'text' }); // TODO:
 		this.levelsInput = addInput({ id: 'levelsInput', type: 'text' }); // TODO:
+
 		this.blurRadiusInput = addInput({ id: 'blurRadiusInput', type: 'range', onEvent: 'input', min: '0', max: '10', step: '1' });
 		this.addDegreesInput = addInput({ id: 'addDegreesInput', type: 'number', min: '0', max: '360', step: '1' });
 		this.unitsInput = addInput({ id: 'unitsInput', type: 'text' });
@@ -235,41 +235,36 @@ export class Editor {
 				return undefined;
 			}
 		};
-		const extraUnits = objFromValue('extraUnitsInput');
-		const colors = objFromValue('colorsInput');
-		const colorMap = objFromValue('colorMapInput');
-		const levels = objFromValue('levelsInput');
-		// (() => {
-		// 	try {
-		// 		return this.extraUnitsInput.value ? <Units>JSON.parse(this.extraUnitsInput.value) : undefined;
-		// 	} catch (e) {
-		// 		console.log('ExtraUnits: parsing error: ', e);
-		// 		return undefined;
-		// 	}
-		// })();
+
+		const colorFromSelectInput = (select: HTMLSelectElement, input: HTMLInputElement): string | undefined => {
+			if (select.value === 'custom') {
+				return input.value;
+			}
+			return select.value || undefined;
+		};
 
 		const style: ColorStyleWeak = {
-			parent: this.parentInput.value || 'base', // string;
+			parent: this.parentInput.value, // string;
 			name: this.nameInput.value || undefined, //string;
 			fill: this.fillSelect.value || undefined, //string;
-			isolineColor: this.isolineColorSelect.value === 'custom' ? this.isolineColorInput.value : this.isolineColorSelect.value || undefined, //string;
+			isolineColor: colorFromSelectInput(this.isolineColorSelect, this.isolineColorInput), //string;
 			isolineText: this.isolineTextInput.checked, //boolean;
 			vectorType: this.vectorTypeSelect.value || undefined, //string;
-			vectorColor: this.vectorColorSelect.value === 'custom' ? this.vectorColorInput.value : this.vectorColorSelect.value || undefined, //string;
-			vectorFactor: this.vectorFactorInput.value ? +this.vectorFactorInput.value : undefined, //number;
-			streamLineColor: this.streamLineColorVisibleInput.checked ? this.streamLineColorInput.value : 'none', //string;
-			streamLineSpeedFactor: this.streamLineSpeedFactorInput.value ? +this.streamLineSpeedFactorInput.value : undefined, //number;
+			vectorColor: colorFromSelectInput(this.vectorColorSelect, this.vectorColorInput), //string;
+			vectorFactor: +this.vectorFactorInput.value, //number;
+			streamLineColor: colorFromSelectInput(this.streamLineColorSelect, this.streamLineColorInput), //string;
+			streamLineSpeedFactor: +this.streamLineSpeedFactorInput.value, //number;
 			streamLineStatic: this.streamLineStaticInput.checked, //boolean;
 			showBelowMin: this.showBelowMinInput.checked, //boolean;
 			showAboveMax: this.showAboveMaxInput.checked, //boolean;
 			colorScheme: this.colorSchemeSelect.value || undefined, //string;
-			colors, // string[];
-			colorMap, // [number, string][];
-			levels, // number[];
-			blurRadius: this.blurRadiusInput.value ? +this.blurRadiusInput.value : undefined, //number;
-			addDegrees: this.addDegreesInput.value ? +this.addDegreesInput.value : undefined, //number;
+			colors: objFromValue('colorsInput'), // string[];
+			colorMap: objFromValue('colorMapInput'), // [number, string][];
+			levels: objFromValue('levelsInput'), // number[];
+			blurRadius: +this.blurRadiusInput.value, //number;
+			addDegrees: +this.addDegreesInput.value, //number;
 			units: this.unitsInput.value || undefined, //string;
-			extraUnits, // Units; //{ [name: string]: [string, number, ?number] };
+			extraUnits: objFromValue('extraUnitsInput'), // Units; //{ [name: string]: [string, number, ?number] };
 			mask: this.maskSelect.value || undefined, // string;
 		};
 
@@ -291,8 +286,8 @@ export class Editor {
 		this.vectorColorSelect.value = style.vectorColor?.[0] === '#' ? 'custom' : style.vectorColor || ''; //string;
 		this.vectorColorInput.value = style.vectorColor?.[0] === '#' ? style.vectorColor : ''; //string;
 		this.vectorFactorInput.value = style.vectorFactor?.toString() || '1'; //number;
-		this.streamLineColorVisibleInput.checked = style.streamLineColor !== 'none'; //boolean;
-		this.streamLineColorInput.value = style.streamLineColor || ''; //string;
+		this.streamLineColorSelect.value = style.streamLineColor?.[0] === '#' ? 'custom' : style.streamLineColor || ''; //string;
+		this.streamLineColorInput.value = style.streamLineColor?.[0] === '#' ? style.streamLineColor : ''; //string;
 		this.streamLineSpeedFactorInput.value = style.streamLineSpeedFactor?.toString() || '1'; //number;
 		this.streamLineStaticInput.checked = style.streamLineStatic || false; //boolean;
 		this.showBelowMinInput.checked = style.showBelowMin || false; //boolean;
@@ -309,8 +304,15 @@ export class Editor {
 	}
 
 	protected _onDivChange(): void {
+		const cleanUp = (obj: any) => {
+			Object.keys(obj).forEach((key) => {
+				if (obj[key] === undefined) delete obj[key];
+			});
+			return obj;
+		};
+
 		// update text area
-		const style = Object.assign(this._getStyleFromTextArea(), this._getStyleFromDiv());
+		const style = Object.assign(this._getStyleFromTextArea(), cleanUp(this._getStyleFromDiv()));
 		this.editorTextAreaEl.value = JSON.stringify(style, null, 2);
 		this.onchange?.(this.getStyle());
 	}
