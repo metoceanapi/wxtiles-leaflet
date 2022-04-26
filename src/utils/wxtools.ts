@@ -25,6 +25,8 @@ export interface ColorStyleWeak {
 	vectorFactor?: number;
 	streamLineColor?: string;
 	streamLineSpeedFactor?: number;
+	streamLineGridStep?: number;
+	streamLineSteps?: number;
 	streamLineStatic?: boolean;
 	showBelowMin?: boolean;
 	showAboveMax?: boolean;
@@ -47,7 +49,7 @@ export interface ColorStylesIncomplete {
 	[name: string]: ColorStyleWeak;
 }
 
-export interface ColorStyleStrict {
+export interface ColorStyleStrict extends ColorStyleWeak {
 	parent?: string;
 	name: string;
 	fill: string;
@@ -58,6 +60,8 @@ export interface ColorStyleStrict {
 	vectorFactor: number;
 	streamLineColor: string;
 	streamLineSpeedFactor: number;
+	streamLineGridStep?: number;
+	streamLineSteps?: number;
 	streamLineStatic: boolean;
 	showBelowMin: boolean;
 	showAboveMax: boolean;

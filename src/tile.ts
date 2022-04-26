@@ -659,8 +659,8 @@ export class WxTile {
 		const [l, u, v] = this.data;
 		const factor = (style.streamLineSpeedFactor || 1) / l.dmax;
 		const addDegrees = style.addDegrees ? 0.017453292519943 * style.addDegrees : 0;
-		const gridStep = 64;
-		const steps = 300;
+		const gridStep = style.streamLineGridStep || 64;
+		const steps = style.streamLineSteps || 300;
 		for (let y = 0; y <= 256; y += gridStep) {
 			for (let x = 0; x <= 256; x += gridStep) {
 				if (!l.raw[1 + x + (1 + y) * 258]) continue; // NODATA
