@@ -526,5 +526,6 @@ export function WXLOG(...str: any) {
 }
 
 export function refineColor(c: string): string {
-	return c !== 'none' && c.length < 7 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c;
+	// convert short form of color into long  #25f => #2255ff
+	return c[0] === '#' && c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c;
 }
