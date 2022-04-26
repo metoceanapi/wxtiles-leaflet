@@ -9,12 +9,20 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+### fix
+
+- refineColor
+
+### add
+
+- style.gridStep and steps to stream lines
+
 ## [1.1.0] - 2022-04-21
 
 ### Added
 
 - A new visual 'custom' style editor
-
+- coloring streamlines
 ### REVERT
 
 - checkDataChanged
