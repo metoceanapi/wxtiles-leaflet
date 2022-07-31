@@ -722,7 +722,7 @@ export class WxTile {
 				let yback = y;
 				oldDi = -1; // previous di. The first di will never be -1
 				for (let i = 1; i <= steps && xback >= 0 && xback <= 256 && yback >= 0 && yback <= 256; i++) {
-					// backward // i = 1 becouse otherwise it produces the same first point hence visual artefact! 2 hours debugging!
+					// backward // i = 1 because otherwise it produces the same first point hence visual artefact! 2 hours debugging!
 					if (!(i % (steps / 10))) sLine.unshift({ x: ~~xback, y: ~~yback }); // push each (steps/10)-th point // 6 points max
 					const di = ~~xback + 1 + (~~yback + 1) * 258;
 					if (di !== oldDi) {
