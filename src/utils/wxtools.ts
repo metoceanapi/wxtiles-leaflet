@@ -198,13 +198,16 @@ function cacheURIPromise<T>(fn: CacheableURILoaderPromiseFunc<T>): CacheableURIL
 }
 
 // abortable 'loadImage'
-async function loadImage(url: string, requestInit?: RequestInit): Promise<HTMLImageElement> {
+async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
 	//// Method 0
-	const img = new Image();
-	img.src = URL.createObjectURL(await (await fetch(url, requestInit)).blob());
-	await img.decode();
-	URL.revokeObjectURL(img.src);
-	return img;
+	return createImageBitmap(await (await fetch(url, requestInit)).blob());
+
+	// //// Method 000
+	// const img = new Image();
+	// img.src = URL.createObjectURL(await (await fetch(url, requestInit)).blob());
+	// await img.decode();
+	// URL.revokeObjectURL(img.src);
+	// return img;
 
 	// const img = new Image();
 	// img.crossOrigin = 'anonymous'; // essential
@@ -248,7 +251,7 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
-function imageToData(image: HTMLImageElement): ImageData {
+function imageToData(image: ImageBitmap): ImageData {
 	const { width, height } = image;
 	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
 	if (!context) throw new Error('Error: can not create context. Catastrophe');
