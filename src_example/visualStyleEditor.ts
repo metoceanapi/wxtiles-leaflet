@@ -280,14 +280,14 @@ export class Editor {
 		this.nameInput.value = style.name || ''; //string;
 		this.fillSelect.value = style.fill || ''; //string;
 		this.isolineColorSelect.value = style.isolineColor?.[0] === '#' ? 'custom' : style.isolineColor || ''; //string;
-		this.isolineColorInput.value = style.isolineColor?.[0] === '#' ? style.isolineColor : ''; //string;
+		this.isolineColorInput.value = style.isolineColor?.[0] === '#' ? style.isolineColor : '#000000'; //string;
 		this.isolineTextInput.checked = style.isolineText || false; //boolean;
 		this.vectorTypeSelect.value = style.vectorType || ''; //string;
 		this.vectorColorSelect.value = style.vectorColor?.[0] === '#' ? 'custom' : style.vectorColor || ''; //string;
-		this.vectorColorInput.value = style.vectorColor?.[0] === '#' ? style.vectorColor : ''; //string;
+		this.vectorColorInput.value = style.vectorColor?.[0] === '#' ? style.vectorColor : '#000000'; //string;
 		this.vectorFactorInput.value = style.vectorFactor?.toString() || '1'; //number;
 		this.streamLineColorSelect.value = style.streamLineColor?.[0] === '#' ? 'custom' : style.streamLineColor || ''; //string;
-		this.streamLineColorInput.value = style.streamLineColor?.[0] === '#' ? style.streamLineColor : ''; //string;
+		this.streamLineColorInput.value = style.streamLineColor?.[0] === '#' ? style.streamLineColor : '#000000'; //string;
 		this.streamLineSpeedFactorInput.value = style.streamLineSpeedFactor?.toString() || '1'; //number;
 		this.streamLineStaticInput.checked = style.streamLineStatic || false; //boolean;
 		this.showBelowMinInput.checked = style.showBelowMin || false; //boolean;
