@@ -9,6 +9,12 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [1.1.2] - 2022-09-28
+
+### fix
+
+- Bug: Text on canvas cleared background
+
 ## [1.1.1] - 2022-04-26
 
 ### fix
@@ -25,6 +31,7 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 - A new visual 'custom' style editor
 - coloring streamlines
+
 ### REVERT
 
 - checkDataChanged
