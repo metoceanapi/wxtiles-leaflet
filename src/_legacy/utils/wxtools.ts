@@ -2,12 +2,6 @@ import { __units_default_preset } from '../defaults/uconv';
 import { __colorSchemes_default_preset } from '../defaults/colorschemes';
 import { __colorStyles_default_preset } from '../defaults/styles';
 
-export interface XYZ {
-	x: number;
-	y: number;
-	z: number;
-}
-
 export type UnitTuple = [string, number, number?];
 
 export interface Units {
@@ -90,14 +84,14 @@ let _units: Units;
 let _colorSchemes: ColorSchemes;
 let _colorStylesUnrolled: ColorStylesStrict;
 
-export interface WxTilesLibOptions {
+export interface LibSetupObject {
 	colorStyles?: ColorStylesWeakMixed;
 	units?: Units;
 	colorSchemes?: ColorSchemes;
 }
 
 /// some random usefull stuff
-export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: WxTilesLibOptions = {}): void {
+export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: LibSetupObject = {}): void {
 	WXLOG('WxTile lib setup: start');
 	_units = Object.assign({}, __units_default_preset, units);
 	_colorSchemes = Object.assign({}, colorSchemes, __colorSchemes_default_preset);
@@ -106,14 +100,8 @@ export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {
 	WXLOG('WxTile lib setup: styles unrolled');
 
 	// Make sure fonts are loaded & ready!
-	try {
-		(async () => {
-			await document.fonts.load('32px barbs');
-			await document.fonts.load('32px arrows');
-		})();
-	} catch (e) {
-		WXLOG('WxTile lib setup: fonts not loaded');
-	}
+	document.fonts.load('32px barbs');
+	document.fonts.load('32px arrows');
 
 	WXLOG('WxTile lib setup is done.');
 }
@@ -209,25 +197,8 @@ function cacheURIPromise<T>(fn: CacheableURILoaderPromiseFunc<T>): CacheableURIL
 	};
 }
 
-export type UriLoaderPromiseFunc<T> = (url: string, ...props: any) => Promise<T>;
-export function cacheUriPromise<T>(fn: UriLoaderPromiseFunc<T>): UriLoaderPromiseFunc<T> {
-	const cache = new Map<string, Promise<T>>();
-	return (url, ...props) => {
-		const cached = cache.get(url);
-		if (cached) return cached;
-		const promise = fn(url, ...props);
-		// cache any result (even falures)
-		cache.set(url, promise);
-		// except aborted (images), so they could be reloaded
-		promise.catch((e) => {
-			e.name === 'AbortError' && cache.delete(url);
-		});
-		return promise;
-	};
-}
-
 // abortable 'loadImage'
-export async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
+async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
 	//// Method 0
 	return createImageBitmap(await (await fetch(url, requestInit)).blob());
 
@@ -265,7 +236,7 @@ export async function loadImage(url: string, requestInit?: RequestInit): Promise
 
 interface IntegralPare {
 	integral: Uint32Array;
-	integralNZ: Uint32Array | null;
+	integralNZ: Uint32Array;
 }
 
 export interface DataPicture {
@@ -280,17 +251,10 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
-export function create2DContext({ width, height }: { width: number; height: number }): CanvasRenderingContext2D {
-	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d', {
-		willReadFrequently: true,
-	});
-	if (!context) throw new Error('Cannot get canvas context');
-	return context;
-}
-
 function imageToData(image: ImageBitmap): ImageData {
 	const { width, height } = image;
-	const context = create2DContext(image);
+	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
+	if (!context) throw new Error('Error: can not create context. Catastrophe');
 	context.drawImage(image, 0, 0);
 	return context.getImageData(0, 0, width, height);
 }
@@ -326,8 +290,16 @@ function dataToIntegral(imData: ImageData): DataIntegral {
 	return { raw, dmin, dmax, dmul, integral, radius: 0 };
 }
 
-export async function loadDataIntegral(url: string, requestInit?: RequestInit): Promise<DataIntegral> {
+// http://webpjs.appspot.com/ = webp lossless decoder
+// https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
+async function loadDataIntegral(url: string, requestInit?: RequestInit): Promise<DataIntegral> {
+	// const image = await loadImage(url, signal); ///*Old approach to solve 'crossorigin' and 'abort'*/ const img = await loadImage(URL.createObjectURL(await (await fetch(url, { signal, cache: 'force-cache' })).blob()));
+	// const context = Object.assign(document.createElement('canvas'), { width: 258, height: 258, imageSmoothingEnabled: false }).getContext('2d');
+	// if (!context) return Promise.reject();
+	// context.drawImage(image, 0, 0);
+	// return pixelsToData(context.getImageData(0, 0, 258, 258));
 	return dataToIntegral(await loadImageData(url, requestInit));
+	// return dataToIntegral(await loadImageData(url, signal));
 }
 
 interface AbortControllerHolder {
@@ -396,7 +368,7 @@ function integralImage(raw: Uint16Array): IntegralPare {
 	const integral = new Uint32Array(258 * 258);
 	// The main Idea of integralNZ is to calculate the amount of non zero values,
 	// so in the Blur algorithm it can be used for 'averaging' instead of actual area of BoxBlur frame
-	let integralNZ: Uint32Array | null = new Uint32Array(258 * 258);
+	const integralNZ = new Uint32Array(258 * 258);
 
 	integral[0] = raw[0]; // upper left value
 	integralNZ[0] = raw[0] === 0 ? 0 : 1; // upper left value
@@ -416,9 +388,6 @@ function integralImage(raw: Uint16Array): IntegralPare {
 			integralNZ[i] = (raw[i] === 0 ? 0 : 1) + integralNZ[i - 258] + integralNZ[i - 1] - integralNZ[i - 258 - 1];
 		}
 	}
-
-	// 66564 is the maximum value of the integral image
-	// integralNZ[66563] === 66564 && (integralNZ = null); // if all values are not 0, then no need to use it
 
 	return { integral, integralNZ };
 }
@@ -440,16 +409,11 @@ export function blurData(im: DataIntegral, radius: number): DataIntegral {
 			const i1 = s * (y - ry - 1) + x;
 			const i2 = s * (y + ry) + x;
 
-			let sumNZ: number;
-			if (integralNZ) {
-				const ANZ = integralNZ[i1 - rx - 1];
-				const BNZ = integralNZ[i1 + rx];
-				const CNZ = integralNZ[i2 - rx - 1];
-				const DNZ = integralNZ[i2 + rx];
-				sumNZ = ANZ + DNZ - BNZ - CNZ; // amount of non Zero values
-			} else {
-				sumNZ = (2 * rx + 1) * (2 * ry + 1); // all values are non Zero
-			}
+			const ANZ = integralNZ[i1 - rx - 1];
+			const BNZ = integralNZ[i1 + rx];
+			const CNZ = integralNZ[i2 - rx - 1];
+			const DNZ = integralNZ[i2 + rx];
+			const sumNZ = ANZ + DNZ - BNZ - CNZ; // amount of non Zero values
 
 			const A = integral[i1 - rx - 1];
 			const B = integral[i1 + rx];
@@ -506,13 +470,8 @@ export function HEXtoRGBA(c: string): number {
 }
 
 // json loader helper
-export async function fetchJson<T = any>(url: RequestInfo, requestInit?: RequestInit): Promise<T> {
-	const response = await fetch(url, requestInit);
-	if (!response.ok) {
-		throw new Error('error:' + url + ' - ' + response.statusText);
-	}
-
-	return response.json();
+export async function fetchJson(url: RequestInfo, requestInit?: RequestInit) {
+	return (await fetch(url, requestInit)).json();
 }
 
 export function createEl(tagName: string, className = '', container?: HTMLElement): HTMLElement {
@@ -576,12 +535,4 @@ export function WXLOG(...str: any) {
 export function refineColor(c: string): string {
 	// convert short form of color into long  #25f => #2255ff
 	return c[0] === '#' && c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c;
-}
-
-export function uriXYZ(uri: string, { x, y, z }: XYZ): string {
-	return uri.replace('{x}', x.toString()).replace('{y}', y.toString()).replace('{z}', z.toString());
-}
-
-export function HashXYZ({ x, y, z }: XYZ): string {
-	return `${z}-${x}-${y}`;
 }
