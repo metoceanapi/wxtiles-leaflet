@@ -4,8 +4,8 @@
 	"dataServer3": "http://localhost:8585/data",
 	"ext": "png",
 	"map": {
-		"center": [-37.803113, 174.878166],
-		"zoom": 3,
+		"center": [-40.75, 174.5],
+		"zoom": 7,
 		"zoomControl": false
 	},
 	"baseLayers": [

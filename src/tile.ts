@@ -325,7 +325,7 @@ export class WxTile {
 		const { coords, layer } = this;
 		const { mask } = layer.style;
 		// Check by QTree
-		var tileType: TileType | undefined = TileType.Mixed;
+		var tileType = TileType.Mixed;
 		if (mask === 'land' || mask === 'sea') {
 			tileType = QTreeCheckCoord(coords); // check 'type' of a tile
 			if (mask === tileType) {
@@ -372,7 +372,7 @@ export class WxTile {
 
 		const ctxStreamLines = getClearCtx(this.canvasStreamLines);
 		const { clut, style } = this.layer;
-		const [l, u, v] = this.data;
+		const [l] = this.data;
 
 		if (style.streamLineColor === 'none') {
 			this.streamLines = []; // this can happen if a new style was set up after the layer was loaded.

@@ -29,7 +29,7 @@ esbuild
 		const app = express();
 		app.use(express.static('public'));
 
-		const PORT = 3002;
+		const PORT = 3001;
 
 		const url = `http://localhost:${PORT}`;
 		app.listen(PORT, () => {
