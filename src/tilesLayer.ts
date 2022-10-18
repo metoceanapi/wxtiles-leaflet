@@ -2,440 +2,214 @@
 // tile.style.pointerEvents = `auto`; tile.addEventListener(`click`, function(e) {console.log(`X=` + e.offsetX + ` Y=` + e.offsetY + ` ` + coords);});
 
 import L from 'leaflet';
+import { WXLOG, loadDataIntegralCachedAbortable, WxColorStyleStrict, WxColorStyleWeak, WxGetColorStyles, XYZ } from './utils/wxtools';
+import { WxVariableMeta } from './wxAPI/wxAPI';
+import { WxDataSetManager } from './wxAPI/WxDataSetManager';
+import { WxLayerAPI, WxLayer, WxDate, WxVars, WxLngLat, WxRequestInit, WxTileInfo } from './wxlayer/wxlayer';
+import { newWxTile, WxTile } from './_legacy/tile';
 
-import { RawCLUT, createLegend, Legend } from './utils/RawCLUT';
-import { newWxTile, TileEl, WxTile } from './tile';
-import {
-	loadDataIntegralCachedAbortable,
-	fetchJson,
-	RGBtoHEX,
-	WxGetColorStyles,
-	ColorStylesStrict,
-	WXLOG,
-	ColorStyleStrict,
-	AbortableCacheableURILoaderPromiseFunc,
-	getClosestTimeString,
-	DataIntegral,
-	loadImageDataCachedAbortable,
-	refineColor,
-} from './utils/wxtools';
-
-// A SINGLETON
-let loadMaskFunc: AbortableCacheableURILoaderPromiseFunc<ImageData> | undefined = undefined;
-
-export function WxInitLoadMaskFunc(requestInit?: RequestInit) {
-	loadMaskFunc = loadImageDataCachedAbortable(requestInit);
-}
-
-export interface WxTileInfo {
+export interface TileEl extends HTMLDivElement {
 	wxtile: WxTile;
-	data: number[];
-	raw: number[];
-	rgba: number[];
-	hexColor: string[];
-	inStyleUnits: number[];
-	tilePoint: { x: number; y: number };
-	styleUnits: string;
-	dataUnits: string;
 }
+export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
+	protected animation = false;
+	protected animationSeed = 0;
+	protected readonly layer: WxLayer;
 
-export interface VariableMeta {
-	[name: string]: {
-		units: string;
-		min: number;
-		max: number;
-	};
-}
+	protected oldMaxZoom?: number; /* to restore coarse maximum zoom level to make tiles load faster during animation */
 
-export interface BoundaryMeta {
-	west: number;
-	north: number;
-	east: number;
-	south: number;
-}
+	constructor({
+		time,
+		variables,
+		wxdatasetManager,
+		ext = 'png',
+		wxstyleName = 'base',
 
-export interface AllBoundariesMeta {
-	boundariesnorm: BoundaryMeta;
-	boundaries180: BoundaryMeta[];
-	boundaries360: BoundaryMeta[];
-}
+		options,
+	}: {
+		time?: WxDate;
+		variables: WxVars;
+		wxdatasetManager: WxDataSetManager;
+		ext?: 'png';
+		wxstyleName?: string;
 
-export interface Meta {
-	variables: string[];
-	variablesMeta: VariableMeta;
-	maxZoom: number;
-	times: string[];
-	boundaries?: AllBoundariesMeta;
-}
-
-export interface DataSource {
-	serverURI: string; // server to fetch data from
-	maskServerURI: string; // server to fetch MASK from
-	ext: 'webp' | 'png'; // png / webp (default) - wxtilesplitter output format
-	dataset: string; // dataset of the dataset
-	variables: string[]; // variabls to be used for the layer rendering
-	name: string; // attribute of the dataSource to be used externally
-	styleName: string; // The name of the style (from styles.json) to apply for the layer
-	requestInit?: RequestInit; // requestInit to be used for the layer's data loading
-}
-
-export interface WxLayerState {
-	currentTime: string;
-	baseURL: string;
-	minmax: [number, number][];
-	instance: string;
-	originURI: string;
-	units: string;
-	meta: Meta;
-	vector: boolean;
-}
-
-export interface WxTilesLayerSettings {
-	// Lazy setup
-	// 'true': perform setup and data loading on 'addTo(map)'.
-	// 'false': start loading immediately, but loading is not finished when layer is created.
-	// the setupCompletePromise is resolved when loading is finished.
-	// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
-	lazy?: boolean;
-	dataSource: DataSource;
-	options: L.GridLayerOptions; // leaflet's options for the layer
-}
-
-export class WxTilesLayer extends L.GridLayer {
-	protected styles: ColorStylesStrict = WxGetColorStyles();
-	protected redrawRequestID: number = 0;
-	protected vectorAnimationRequestID: number = 0;
-	protected oldMaxZoom: number = 0;
-
-	setupCompletePromise: Promise<void>;
-	dataSource: DataSource;
-
-	style: ColorStyleStrict = Object.assign({}, this.styles['base']);
-	clut: RawCLUT = new RawCLUT(this.style, '', [0, 2], false);
-
-	loadDataIntegralFunc: AbortableCacheableURILoaderPromiseFunc<DataIntegral>;
-	loadMaskFunc: AbortableCacheableURILoaderPromiseFunc<ImageData>;
-
-	state: WxLayerState; // it will be filled after setupCompletePromise is resolved
-
-	animation: boolean = true; // vector stream lines animation enabled by default
-
-	constructor(settings: WxTilesLayerSettings) {
-		super(settings.options);
-		const { dataSource, lazy } = settings;
-
-		WXLOG('Creating a WxTiles layer:', dataSource.name, '. Params:', JSON.stringify(settings));
-
-		if (
-			!dataSource?.ext ||
-			!dataSource.dataset ||
-			!dataSource.name ||
-			!dataSource.serverURI ||
-			!dataSource.styleName ||
-			!Array.isArray(dataSource.variables) ||
-			dataSource.variables.length < 1 ||
-			dataSource.variables.length > 2
-		) {
-			const err = 'WxTilesLayer: dataSource is wrong!';
-			WXLOG(err);
-			throw new Error(err);
-		}
-
-		this.dataSource = dataSource;
-		this.state = {
-			originURI: dataSource.serverURI + '/' + dataSource.dataset + '/',
-			units: '',
-			baseURL: '',
-			meta: { maxZoom: 0, times: [], variables: [], variablesMeta: {} },
-			instance: '',
-			minmax: [[0, 1]],
-			currentTime: '',
-			vector: dataSource.variables.length > 1,
-		};
-
-		this.loadDataIntegralFunc = loadDataIntegralCachedAbortable(dataSource.requestInit);
-		if (!loadMaskFunc) loadMaskFunc = loadImageDataCachedAbortable(dataSource.requestInit);
-		this.loadMaskFunc = loadMaskFunc;
-
-		const checkZoom = () => {
-			// used in onAddLayer() & onRemoveLayer()
-			// if zoom > maxZoom then the same tiles are used, so could be loaded from cache.
-			if (this._map?.getZoom() < this.state.meta.maxZoom) {
-				this._stopLoadingResetLoadDataFunc(); // Otherwise cache should be reset
-			}
-		};
-
-		// onAdd is used in the leaflet library! so I renamed it.
-		const onAddLayer = () => {
-			WXLOG('onadd:', this.dataSource.name);
-			if (!this._map) {
-				throw new Error('_map is not set!');
-			}
-			this._map.on('zoomstart', checkZoom); // fired when tiles are about to start loading... when zoom or shift
-
-			// by deafault (in the Base style), it starts animation even if the layer is not fully initialized yet.
-			// and keep animating until:
-			// 1. the layer is removed from the map
-			// 2. the layer is not a vector layer
-			// 3. current style stops animation
-			this._checkAndStartVectorAnimation();
-		};
-
-		const onRemoveLayer = () => {
-			WXLOG('onremove:', this.dataSource.name);
-			if (!this._map) {
-				throw new Error('_map is not set!');
-			}
-			this._map.off('zoomstart', checkZoom);
-			this._stopLoadingResetLoadDataFunc(); // remove the data cache anyway
-		};
-
-		this.on('remove', onRemoveLayer);
-		this.on('add', onAddLayer);
-
-		this.setupCompletePromise = new Promise((resolve /*, reject*/): void => {
-			const initialSetup = async () => {
-				WXLOG('Setup:', dataSource.name);
-				await this._setUpDataSet();
-				WXLOG('Setup complete: ', this.dataSource.name);
-
-				resolve(); // resolve setupCompletePromise
-			}; // initialSetup function
-
-			if (lazy) {
-				this.once('add', initialSetup); // Lazy loading // sets it up only if user wants to visualise it
-			} else {
-				initialSetup();
-			}
-		}); // new setupCompletePromise
+		options?: L.GridLayerOptions;
+	}) {
+		super(options);
+		this.layer = new WxLayer({ time, variables, wxdatasetManager, ext, wxstyleName });
 	} // constructor
 
-	protected async _setUpDataSet(): Promise<void> {
-		const { state, dataSource } = this;
-		try {
-			state.instance = ((await fetchJson(state.originURI + 'instances.json')) as string[]).pop() + '/';
-		} catch (e) {
-			const error = dataSource.name + ': load instances.json error: ' + e;
-			WXLOG(error);
-			throw new Error(error);
-		}
-
-		try {
-			const URI = state.originURI + state.instance + 'meta.json';
-			state.meta = (await fetchJson(URI)) as Meta;
-		} catch (e) {
-			const error = dataSource.name + ': load meta.json error: ' + e;
-			WXLOG(error);
-			throw new Error(error);
-		}
-
-		state.vector = dataSource.variables.length === 2;
-
-		const { variablesMeta } = state.meta;
-		state.units = variablesMeta[dataSource.variables[0]].units;
-		state.minmax = dataSource.variables.map((v) => [variablesMeta[v].min, variablesMeta[v].max]);
-		if (state.vector) {
-			const [[udmin, udmax], [vdmin, vdmax]] = state.minmax;
-			state.minmax.unshift([0, 1.42 * Math.max(-udmin, udmax, -vdmin, vdmax)]);
-		}
-
-		this._setStyleAndCLUT(dataSource.styleName); // calculate the CLUT
-		this._setTimeUrl(new Date());
-	} // _setUpDataSet
-
-	protected async _requestReloadTilesAndRedraw(): Promise<boolean> {
-		const ok = await this._requestReloadTiles();
-		ok && this._redrawTiles(); // if not aborted, redraw
-		return ok;
+	/**
+	 * @description Get the metadata of the current variable.
+	 * @memberof WxTileSource
+	 * @returns {WxVariableMeta} - The metadata of the current variable.
+	 */
+	getMetadata(): WxVariableMeta {
+		return { ...this.layer.currentMeta };
 	}
 
-	protected async _requestReloadTiles(): Promise<boolean> {
-		WXLOG(`_requestReloadTiles: start - ${this.dataSource.name}`);
-		const { controller } = this.loadDataIntegralFunc.controllerHolder; // save current controller ...
-		await Promise.allSettled(this._ForEachWxTile((wxtile) => wxtile.load()));
-		WXLOG(`_requestReloadTiles: end - ${this.dataSource.name}, aborted: ${controller.signal.aborted}`);
-		return !controller.signal.aborted;
-	} // _requestReloadTiles
-
-	async setStyle(styleName: string): Promise<void> {
-		WXLOG('setStyle(', styleName, ') for ', this.dataSource.name);
-		if (styleName === 'custom' || styleName !== this.dataSource.styleName) {
-			// if styleName is 'custom' or different from current styleName
-			this._setStyleAndCLUT(styleName);
-			this._checkAndStartVectorAnimation();
-			await this._requestReloadTilesAndRedraw(); // with redraw
-		}
-
-		WXLOG('setStyle(', styleName, '): "' + this.dataSource.styleName + '" for ' + this.dataSource.name + ' complete.');
+	/**
+	 * @description Get current variables of the source.
+	 * @memberof WxTileSource
+	 * @returns {WxVars} variables of the source.
+	 */
+	getVariables(): WxVars {
+		return [...this.layer.variables];
 	}
 
-	protected _setStyleAndCLUT(styleName: string): void {
-		const { dataSource, styles, state } = this;
+	/**
+	 * @description Clears the cache of the source.
+	 * @memberof WxTileSource
+	 */
+	clearCache(): void {
+		WXLOG('WxTileSource clearCache');
+		this.layer.clearCache();
+	}
 
-		dataSource.styleName = styleName;
+	/**
+	 * @description Get a copy of the current style of the source.
+	 * @memberof WxTileSource
+	 * @returns {WxColorStyleStrict} A copy of the current style of the source.
+	 */
+	getCurrentStyleObjectCopy(): WxColorStyleStrict {
+		return this.layer.getCurrentStyleObjectCopy();
+	}
 
-		if (styleName === 'custom') {
-			if (!(styles.custom.parent && styles.custom.parent in styles)) {
-				WXLOG(`cant find the parent style (${styles.custom.parent}), 'base' is used`);
-				styles.custom.parent = 'base';
+	/**
+	 * @description Get the current time of the source.
+	 * @memberof WxTileSource
+	 * @returns {string} The current time of the source.
+	 */
+	getTime(): string {
+		return this.layer.getTime();
+	}
+
+	/**
+	 * @description Set time and render the source. If the time is not available, the closest time will be used.
+	 * @memberof WxTileSource
+	 * @param  {WxDate} time_ - Time to set.
+	 * @param {WxRequestInit | undefined} requestInit - Request options.
+	 * @returns {Promise<void>} A promise that resolves when the time is set.
+	 */
+	async setTime(time_?: WxDate, requestInit?: WxRequestInit): Promise<string> {
+		WXLOG(`WxTileSource ${this.layer.wxdatasetManager.datasetName} setTime`, { time: time_ });
+		const oldtime = this.layer.getTime();
+		this.layer.setURLsAndTime(time_);
+		await this._reloadVisible(requestInit);
+		if (requestInit?.signal?.aborted) this.layer.setURLsAndTime(oldtime); // restore old time and URLs
+		return this.layer.getTime();
+	}
+
+	protected async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
+		await this.layer.reloadTiles(this.coveringTiles(), requestInit);
+		if (!requestInit?.signal?.aborted) this.update();
+	}
+
+	/**
+	 * @description Cache tiles for faster rendering for {setTime}. If the time is not available, the closest time will be used.
+	 * @memberof WxTileSource
+	 * @param  {WxDate} time_ - Time to preload.
+	 * @param {WxRequestInit | undefined} requestInit - Request options.
+	 * @returns {Promise<void>} A promise that resolves when finished preload.
+	 */
+	async preloadTime(time_: WxDate, requestInit?: WxRequestInit): Promise<void> {
+		return this.layer.preloadTime(time_, this.coveringTiles(), requestInit);
+	}
+
+	protected coveringTiles(): XYZ[] {
+		const res: XYZ[] = [];
+		for (const _tile in this._tiles) {
+			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
+			if (wxtile) res.push(wxtile.coords);
+		}
+
+		return res;
+	}
+
+	/**
+	 * @description Get cpmprehencive information about the current point on map.
+	 * @memberof WxTileSource
+	 * @param {mapboxgl.LngLat} lnglat - Coordinates of the point.
+	 * @param {any} anymap - MAPBOX map instance.
+	 * @returns {WxTileInfo | undefined } Information about the current point on map. Undefined if NODATA
+	 */
+	getLayerInfoAtLatLon(lnglat: WxLngLat, anymap: any): WxTileInfo | undefined {
+		return this.layer.getTileData({ x: 0, y: 0, z: 0 }, { x: 0, y: 0 });
+	}
+
+	/**
+	 * @description Stops the animation.
+	 * @memberof WxTileSource
+	 */
+	stopAnimation(): void {
+		this.animation = false;
+		this.update();
+	}
+
+	/**
+	 * @description Starts the animation of the source (wind, currents).
+	 * @memberof WxTileSource
+	 */
+	startAnimation(): void {
+		if (this.animation) return;
+		this.animation = true;
+		const animationStep = (seed: number) => {
+			if (!this.animation || this.layer.nonanimatable) {
+				this.animation = false;
+				return;
 			}
 
-			// perform inheritance
-			styles.custom = Object.assign(Object.assign({}, styles[styles.custom.parent]), styles.custom);
-		}
+			this.animationSeed = seed;
+			this.update();
+			requestAnimationFrame(animationStep);
+		};
 
-		if (!(styleName in styles)) {
-			WXLOG(`cant find the style (${styleName}), 'base' is used`);
-			styleName = dataSource.styleName = 'base';
-		}
+		requestAnimationFrame(animationStep);
+	}
 
-		try {
-			this.style = Object.assign({}, styles[styleName]); // deep copy, so could be (and is) changed
-			this.style.streamLineColor = refineColor(this.style.streamLineColor);
-			this.clut = new RawCLUT(this.style, state.units, state.minmax[0], state.vector);
-		} catch (e) {
-			const str = 'setStyle: impossible error in RawCLUT: ' + e;
-			WXLOG(str);
-			throw new Error(str);
-		}
-	} // _setStyle
+	/**
+	 * @description Set the style of the source by its name from default styles.
+	 * @memberof WxTileSource
+	 * @param {string} wxstyleName - Name of the new style to set.
+	 * @param {boolean} reload - If true, the source will be reloaded and rerendered.
+	 * @returns {Promise<void>} A promise that resolves when the style is set.
+	 */
+	async setStyleByName(wxstyleName: string, reload = true): Promise<void> {
+		return this.updateCurrentStyleObject(WxGetColorStyles()[wxstyleName], reload);
+	}
+
+	/**
+	 * @description
+	 * @memberof WxTileSource
+	 * @param {WxColorStyleWeak | undefined} style - Style's fields to set.
+	 * @param {boolean} reload - If true, the source will be reloaded and rerendered.
+	 * @param {WxRequestInit | undefined} requestInit - Request options.
+	 * @returns {Promise<void>} A promise that resolves when the style is set.
+	 */
+	async updateCurrentStyleObject(style?: WxColorStyleWeak, reload = true, requestInit?: WxRequestInit): Promise<void> {
+		this.layer.updateCurrentStyleObject(style);
+		if (reload) return this._reloadVisible(requestInit);
+	}
 
 	/** Leaflet's calling this, don't use it directly! */
 	protected createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
-		return newWxTile({ layer: this, coords, done });
+		const tileEl = document.createElement('div'); // HTMLDivElement + wxtile
+
+		(async () => {
+			const raster_data = await this.layer.loadTile(coords, this.layer.wxdatasetManager.wxapi.requestInit);
+			tileEl.appendChild(raster_data.ctxFill.canvas);
+			tileEl.appendChild(raster_data.ctxText.canvas);
+			tileEl.appendChild(raster_data.ctxStreamLines.canvas);
+		})();
+
+		return tileEl;
+		// if (!this.animation) return raster_data.ctxFill.canvas;
+
+		// this.layer.painter.imprintVectorAnimationLinesStep(raster_data, this.animationSeed);
+		// return raster_data.ctxStreamLines.canvas; // to shut up TS errors
+
+		// return newWxTile({ layer: this, coords, done });
 	} // createTile
-
-	/** NOTE: if lazy setup and layer was not added to a map - this is never fulfilled */
-	getSetupCompletePromise(): Promise<void> {
-		return this.setupCompletePromise;
-	}
-
-	/**  check if data has been changed since last init */
-	async checkDataChanged(): Promise<boolean> {
-		WXLOG('checkDataChanged');
-		try {
-			const instances = await fetchJson(this.state.originURI + 'instances.json');
-			const instance = instances[instances.length - 1] + '/';
-			if (this.state.instance !== instance) return true;
-			// instance didn't change. Check meta.times
-			const meta = await fetchJson(this.state.originURI + instance + 'meta.json');
-			return this.state.meta.times.toString() !== meta.times.toString();
-		} catch (e) {
-			// if layer was not initialized yet, it's not changed
-			return false;
-		}
-	}
-
-	/** get all the information about tile and point it represents */
-	getLayerInfoAtLatLon(latlng: L.LatLngExpression): WxTileInfo | undefined {
-		if (!this._map) return;
-		const zoom = this._map.getZoom();
-		const mapPixCoord = this._map.project(latlng, zoom); // map pixel coordinates
-		const tileCoords = mapPixCoord.divideBy(256).floor(); // tile's coordinates
-		const wxtile = this._getCachedTile(tileCoords, zoom);
-		if (!wxtile) return; // tile is being created and not ready yet
-		const tilePixel = mapPixCoord.subtract(tileCoords.multiplyBy(256)).floor(); // tile pixel coordinates
-		const tileData = wxtile.getPixelInfo(tilePixel);
-		if (!tileData) return; // oops! no data
-		const { raw, data } = tileData;
-		const rgba = raw.map((r) => this.clut.colorsI[r]);
-		const hexColor = rgba.map(RGBtoHEX);
-		const inStyleUnits = data.map((d) => this.clut.DataToStyle(d));
-
-		return { wxtile, data, raw, rgba, hexColor, inStyleUnits, tilePoint: tilePixel, styleUnits: this.style.units, dataUnits: this.state.units };
-	} // getTile
-
-	/** Layer's current style.*/
-	getStyle(): ColorStyleStrict {
-		return this.style;
-	}
-
-	/** get first non-empty wxtile */
-	protected _getFirstNonEmptyTile(): WxTile | undefined {
-		for (const t in this._tiles) {
-			const { wxtile } = <TileEl>this._tiles[t].el;
-			if (wxtile?.data.length) {
-				return wxtile;
-			}
-		}
-
-		// no tiles
-		return;
-	}
-
-	protected _setTimeUrl(time: Date | string | number): boolean {
-		const { dataSource, state } = this;
-		const closestTime = getClosestTimeString(state.meta.times, time);
-		if (state.currentTime === closestTime) {
-			WXLOG('_setTimeUrl: the same time - skipped');
-			return false;
-		}
-
-		state.currentTime = closestTime;
-		// update BaseURL
-		state.baseURL = state.originURI + state.instance + `{var}/${state.currentTime}/{z}/{x}/{y}.${dataSource.ext}`; // webp
-		WXLOG(`_setTimeUrl: ${closestTime} for ${dataSource.name} complete`);
-		return true;
-	}
-
-	/** set time to the closest time in the list of times
-	 * params:
-	 * time - Date, String or number (unix time ms since 00:00:00 UTC on 1 January 1970)
-	 * return:
-	 * Promise resolved as true - if time was changed and tiles were redrawn
-	 * NOTE:
-	 * User should await for setTime promise to be fulfilled, otherwise the data might be loaded but not
-	 * displayed. Some visual issues can come from vector animation.
-	 * */
-	setTime(time: Date | string | number): Promise<boolean> {
-		WXLOG('setTime: ' + time + ' for ' + this.dataSource.name + ' start');
-		if (!this._tiles) {
-			WXLOG('setTime: no tiles - skipped');
-			return Promise.resolve(false);
-		}
-
-		const { currentTime } = this.state;
-		if (!this._setTimeUrl(time)) return Promise.resolve(false);
-
-		this.loadDataIntegralFunc.abort();
-		const reloadPromice = this._requestReloadTiles();
-
-		reloadPromice.then((ok) => {
-			if (!ok) {
-				this.state.currentTime = currentTime; // restore old time
-				return;
-			}
-			/* Ugly workaround for datasets like NZ_Radar where each timestep can have minmax */
-			/* I check if minmax changed, then get\set a new minmax and re-setup the style */
-			const wxtile = this._getFirstNonEmptyTile();
-			if (wxtile?.data.length) {
-				// the first non empty tile
-				const [cmin, cmax] = this.state.minmax[0];
-				const { dmin, dmax } = wxtile.data[0];
-				if (Math.abs(dmin - cmin) > 0.01 || Math.abs(dmax - cmax) > 0.01) {
-					// minmax changed (soft compare)
-					this.state.minmax = wxtile.data.map((d) => [d.dmin, d.dmax]);
-					this._setStyleAndCLUT(this.dataSource.styleName); // recalculate CLUT with new minmax
-				}
-			}
-			/**/
-
-			this._redrawTiles();
-		});
-
-		return reloadPromice;
-	} // setTime
-
-	/** string - current time as it is in meta */
-	getTime(): string {
-		return this.state.currentTime;
-	}
-
-	/**  Array of strings (times) */
-	getTimes(): string[] {
-		WXLOG('getTimes');
-		return this.state.meta.times;
-	}
 
 	/** getLegendData - data to render a proper legend
 	 * pixSize - width of a canvas to render this legend
@@ -450,24 +224,24 @@ export class WxTilesLayer extends L.GridLayer {
 	 */
 	getLegendData(legendSize: number): Legend {
 		WXLOG('getLegendData');
-		return createLegend(legendSize, this.style);
+		return createLegend(legendSize, this.layer.style);
 	}
 
 	/** set coarse maximum zoom level to make tiles load faster during animation */
 	setTimeAnimationMode(l: number = 2): void {
 		WXLOG('setTimeAnimationMode');
-		this.oldMaxZoom = this.state.meta.maxZoom;
+		this.oldMaxZoom = this.layer.wxdataset.meta.maxZoom;
 		const mz = this._map.getZoom();
 		const minMaxZoom = mz < this.oldMaxZoom ? mz : this.oldMaxZoom;
 		const newMaxZoom = minMaxZoom - l;
-		this.state.meta.maxZoom = newMaxZoom < 0 ? 0 : newMaxZoom;
+		this.layer.wxdataset.meta.maxZoom = newMaxZoom < 0 ? 0 : newMaxZoom;
 	}
 
 	/** restore maximum zoom level */
 	async unsetTimeAnimationMode(): Promise<boolean> {
 		WXLOG('unsetTimeAnimationMode');
 		if (this.oldMaxZoom) {
-			this.state.meta.maxZoom = this.oldMaxZoom;
+			this.layer.wxdataset.meta.maxZoom = this.oldMaxZoom;
 		}
 
 		return this._requestReloadTilesAndRedraw();
@@ -477,14 +251,6 @@ export class WxTilesLayer extends L.GridLayer {
 	getMinMax(): { min: number; max: number } {
 		const [min, max] = this.state.minmax[0];
 		return { min, max };
-	}
-
-	/** true/false - if vector data and true, animation starts */
-	setAnimation(a: boolean): boolean {
-		WXLOG('setAnimation');
-		this.animation = a;
-		this._checkAndStartVectorAnimation();
-		return this.animation;
 	}
 
 	protected _getCachedTile({ x, y }: { x: number; y: number }, zoom: number): WxTile | undefined {

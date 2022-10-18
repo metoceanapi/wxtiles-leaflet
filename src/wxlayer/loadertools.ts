@@ -1,6 +1,6 @@
 import { coordToPixel, PixelsToLonLat } from '../utils/mercator';
 import { DataPicture, XYZ } from '../utils/wxtools';
-import { BoundaryMeta } from '../wxAPI/wxAPI';
+import { WxBoundaryMeta } from '../wxAPI/wxAPI';
 
 function interpolatorDegreeLinear(start: number, end: number, amount: number): number {
 	const shortestAngle = ((((end - start) % 360) + 540) % 360) - 180;
@@ -101,7 +101,7 @@ function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: num
 			return dyt < dxt ? (1 - dxt) * (a - b) + dyt * (d - b) + b : 0;
 		case 0b1101: // dc-a   - flipped version
 			return dyt < dxt ? 0 : (1 - dxt) * (c - d) + dyt * (c - a) + a + d - c;
-		case 0b1111: // dcba   -default version
+		case 0b1111: // dcba   - default version
 			return dxt + dyt < 1 ? dxt * (b - a) + dyt * (c - a) + a : dxt * (d - c) + dyt * (d - b) + b + c - d;
 		default:
 			return 0;
@@ -145,7 +145,7 @@ export function subDataDegree(inputData: DataPicture, subCoords?: XYZ): DataPict
 	return subDataPicture(interpolatorSquareDegree, inputData, subCoords);
 }
 
-export function applyMask(data: DataPicture, mask: ImageData, maskType: string): DataPicture {
+export function applyMask2(data: DataPicture, mask: ImageData, maskType: 'land' | 'sea'): DataPicture {
 	const t = maskType === 'land' ? 1 : 0;
 	for (let maskIndex = 3, y = 0; y < 256; y++) {
 		for (let x = 0; x < 256; x++, maskIndex += 4) {
@@ -159,13 +159,18 @@ export function applyMask(data: DataPicture, mask: ImageData, maskType: string):
 	return data;
 }
 
-export function applyMask2(data: DataPicture, mask: ImageData, maskType: string): DataPicture {
-	const t = maskType === 'land';
-	for (let maskIndex = 3, y = 0; y < 256; y++) {
-		for (let x = 0; x < 256; x++, maskIndex += 4) {
-			const m = !mask.data[maskIndex]; // true - land
-			if (t !== m) {
-				data.raw[(y + 1) * 258 + (x + 1)] = 0;
+// if mask.data[] === 0(land) or 255(sea) strictly wthout any intermediate values
+export function applyMask1(data: DataPicture, mask: ImageData, maskType: 'land' | 'sea'): DataPicture {
+	if (maskType === 'sea') {
+		for (let maskIndex = 3, y = 0; y < 256; y++) {
+			for (let x = 0; x < 256; x++, maskIndex += 4) {
+				data.raw[(y + 1) * 258 + (x + 1)] &= mask.data[maskIndex]; // zeroing data if mask is zero (land)
+			}
+		}
+	} else {
+		for (let maskIndex = 3, y = 0; y < 256; y++) {
+			for (let x = 0; x < 256; x++, maskIndex += 4) {
+				data.raw[(y + 1) * 258 + (x + 1)] &= ~mask.data[maskIndex]; // zeroing data if mask is 255 (sea)
 			}
 		}
 	}
@@ -173,7 +178,24 @@ export function applyMask2(data: DataPicture, mask: ImageData, maskType: string)
 	return data;
 }
 
-export function makeBox(coords: XYZ): BoundaryMeta {
+export function applyMask(data: DataPicture, mask: ImageData, maskType: 'land' | 'sea'): DataPicture {
+	const sea = maskType === 'sea';
+	for (let i = 3, y = 0; y < 256; y++) for (let x = 0, j = (y + 1) * 258 + 1; x < 256; x++, j++, i += 4) sea === !mask.data[i] && (data.raw[j] = 0);
+
+	//// equal to
+	// for (let y = 0; y < 256; y++) {
+	// 	for (let x = 0; x < 256; x++) {
+	// 		const land = !mask.data[(y*256+x)*4+3];
+	// 		if (sea === land) {
+	// 			data.raw[(y + 1) * 258 + (x + 1)] = 0; // zeroing data if mask doesn't match the maskType
+	// 		}
+	// 	}
+	// }
+
+	return data;
+}
+
+export function makeBox(coords: XYZ): WxBoundaryMeta {
 	const [px, py] = coordToPixel(coords.x, coords.y);
 	const [west, north] = PixelsToLonLat(px, py, coords.z);
 	const [east, south] = PixelsToLonLat(px + 256, py + 256, coords.z);
@@ -185,7 +207,7 @@ export function splitCoords(coords: XYZ, maxZoom: number): { upCoords: XYZ; subC
 	if (zDif <= 0) {
 		return { upCoords: coords };
 	}
-    
+
 	const upCoords = { x: coords.x >>> zDif, y: coords.y >>> zDif, z: maxZoom };
 	const subCoords = { x: coords.x & ((1 << zDif) - 1), y: coords.y & ((1 << zDif) - 1), z: zDif };
 	return { upCoords, subCoords };

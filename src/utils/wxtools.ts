@@ -11,25 +11,25 @@ export interface XYZ {
 export type UnitTuple = [string, number, number?];
 
 export interface Units {
-	[unit: string]: UnitTuple;
+	[unit: string]: UnitTuple | undefined;
 }
 
-export interface ColorSchemes {
-	[name: string]: string[];
+export interface WxColorSchemes {
+	[name: string]: string[] | undefined;
 }
 
 export type colorMapTuple = [number, string];
 
-export interface ColorStyleWeak {
+export interface WxColorStyleWeak {
 	parent?: string;
 	name?: string;
-	fill?: string;
-	isolineColor?: string;
+	fill?: 'none' | 'gradient' | 'solid';
+	isolineColor?: 'none' | 'inverted' | 'fill' | string;
 	isolineText?: boolean;
-	vectorType?: string;
-	vectorColor?: string;
+	vectorType?: 'none' | 'arrows' | 'barbs';
+	vectorColor?: 'none' | 'inverted' | 'fill' | string;
 	vectorFactor?: number;
-	streamLineColor?: string;
+	streamLineColor?: 'none' | 'inverted' | 'fill' | string;
 	streamLineSpeedFactor?: number;
 	streamLineGridStep?: number;
 	streamLineSteps?: number;
@@ -44,27 +44,27 @@ export interface ColorStyleWeak {
 	addDegrees?: number;
 	units?: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
-	mask?: string;
+	mask?: 'land' | 'sea' | 'none';
 }
 
 export interface ColorStylesWeakMixed {
-	[name: string]: ColorStyleWeak | ColorStyleWeak[];
+	[name: string]: WxColorStyleWeak | WxColorStyleWeak[] | undefined;
 }
 
 export interface ColorStylesIncomplete {
-	[name: string]: ColorStyleWeak;
+	[name: string]: WxColorStyleWeak | undefined;
 }
 
-export interface ColorStyleStrict extends ColorStyleWeak {
+export interface WxColorStyleStrict extends WxColorStyleWeak {
 	parent?: string;
 	name: string;
-	fill: string;
-	isolineColor: string;
+	fill: 'none' | 'gradient' | 'solid';
+	isolineColor: 'none' | 'inverted' | 'fill' | string;
 	isolineText: boolean;
-	vectorType: string;
-	vectorColor: string;
+	vectorType: 'none' | 'arrows' | 'barbs';
+	vectorColor: 'none' | 'inverted' | 'fill' | string;
 	vectorFactor: number;
-	streamLineColor: string;
+	streamLineColor: 'none' | 'inverted' | 'fill' | string;
 	streamLineSpeedFactor: number;
 	streamLineGridStep?: number;
 	streamLineSteps?: number;
@@ -79,21 +79,22 @@ export interface ColorStyleStrict extends ColorStyleWeak {
 	addDegrees: number;
 	units: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
-	mask?: string;
+	mask?: 'land' | 'sea' | 'none';
 }
 
 export interface ColorStylesStrict {
-	[name: string]: ColorStyleStrict;
+	base: WxColorStyleStrict;
+	[name: string]: WxColorStyleStrict | undefined;
 }
 
 let _units: Units;
-let _colorSchemes: ColorSchemes;
+let _colorSchemes: WxColorSchemes;
 let _colorStylesUnrolled: ColorStylesStrict;
 
 export interface WxTilesLibOptions {
 	colorStyles?: ColorStylesWeakMixed;
 	units?: Units;
-	colorSchemes?: ColorSchemes;
+	colorSchemes?: WxColorSchemes;
 }
 
 /// some random usefull stuff
@@ -122,7 +123,7 @@ export function WxGetColorStyles(): ColorStylesStrict {
 	return _colorStylesUnrolled;
 }
 
-export function WxGetColorSchemes(): ColorSchemes {
+export function WxGetColorSchemes(): WxColorSchemes {
 	return _colorSchemes;
 }
 
@@ -141,15 +142,17 @@ export function makeConverter(from: string, to: string, customUnits?: Units): Co
 	}
 
 	const localUnitsCopy = Object.assign({}, _units, customUnits);
-	if (!localUnitsCopy[from] || !localUnitsCopy[to]) {
+	const fromUnit = localUnitsCopy[from];
+	const toUnit = localUnitsCopy[to];
+	if (!fromUnit || !toUnit) {
 		WXLOG('Inconvertible units. Trivial converter');
 		return c; // Inconvertible
 	}
 
-	const [fromUnit, fromFactor, fromOffset] = localUnitsCopy[from];
-	const [toUnit, toFactor, toOffset] = localUnitsCopy[to];
+	const [fromUnitBase, fromFactor, fromOffset] = fromUnit;
+	const [toUnitBase, toFactor, toOffset] = toUnit;
 
-	if (fromUnit !== toUnit || !fromFactor || !toFactor) {
+	if (fromUnitBase !== toUnitBase || !fromFactor || !toFactor) {
 		WXLOG('Inconvertible units. Trivial converter');
 		return c; // trivial
 	}
@@ -172,16 +175,18 @@ function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStri
 		}
 	}
 
+	const baseStyleCopy = Object.assign({}, __colorStyles_default_preset.base);
 	// recursive function to apply inheritance
-	const inherit = (stylesInc: ColorStylesIncomplete, name: string): ColorStyleStrict => {
-		if (name === 'base') return __colorStyles_default_preset.base; // nothing to inherit
+	const inherit = (stylesInc: ColorStylesIncomplete, name: string): WxColorStyleStrict => {
+		if (name === 'base') return baseStyleCopy; // nothing to inherit
 		const style = stylesInc[name]; // there are no arrays by this point
+		if (!style) return baseStyleCopy; // nothing to inherit
 		if (!style.parent || !(style.parent in stylesInc)) style.parent = 'base';
 		const parent = inherit(stylesInc, style.parent); // After inheritance it is FULL ColorStyle
 		return Object.assign(style, Object.assign({}, parent, style, { parent: 'base' })); // this ugly construction changes style 'in place' so it is a soft-copy. huray!
 	};
 
-	const styles: ColorStylesStrict = {};
+	const styles: ColorStylesStrict = { base: baseStyleCopy };
 	for (const name in stylesInc) {
 		styles[name] = inherit(stylesInc, name);
 	}
@@ -280,9 +285,9 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
-export function create2DContext({ width, height }: { width: number; height: number }): CanvasRenderingContext2D {
+export function create2DContext(width: number, height: number, willReadFrequently = true): CanvasRenderingContext2D {
 	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d', {
-		willReadFrequently: true,
+		willReadFrequently,
 	});
 	if (!context) throw new Error('Cannot get canvas context');
 	return context;
@@ -290,7 +295,7 @@ export function create2DContext({ width, height }: { width: number; height: numb
 
 function imageToData(image: ImageBitmap): ImageData {
 	const { width, height } = image;
-	const context = create2DContext(image);
+	const context = create2DContext(width, height);
 	context.drawImage(image, 0, 0);
 	return context.getImageData(0, 0, width, height);
 }
@@ -569,7 +574,7 @@ export function WxTilesLogging(on: boolean) {
 
 export function WXLOG(...str: any) {
 	if (wxlogging) {
-		console.trace(...str);
+		console.log(...str);
 	}
 }
 
@@ -579,7 +584,8 @@ export function refineColor(c: string): string {
 }
 
 export function uriXYZ(uri: string, { x, y, z }: XYZ): string {
-	return uri.replace('{x}', x.toString()).replace('{y}', y.toString()).replace('{z}', z.toString());
+	return uri.replace('{x}', `${x}`).replace('{y}', `${y}`).replace('{z}', `${z}`);
+	// return uri.replace('{x}', x.toString()).replace('{y}', y.toString()).replace('{z}', z.toString());
 }
 
 export function HashXYZ({ x, y, z }: XYZ): string {

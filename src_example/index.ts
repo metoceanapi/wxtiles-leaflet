@@ -1,24 +1,25 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import {
-	WxTilesLogging,
-	WxTilesLibSetup,
-	CreateWxTilesWatermark,
-	CreateWxTilesLayer,
-	CreateWxDebugCoordsLayer,
-	WxGetColorStyles,
-	WxTilesLayer,
-	LoadQTree,
-	Meta,
-	Legend,
-	ColorStylesStrict,
-	fetchJson,
-	WxTilesLayerSettings,
-} from '../src/wxtiles';
+// import {
+// 	WxTilesLogging,
+// 	WxTilesLibSetup,
+// 	CreateWxTilesWatermark,
+// 	CreateWxTilesLayer,
+// 	CreateWxDebugCoordsLayer,
+// 	WxGetColorStyles,
+// 	WxTilesLayer,
+// 	LoadQTree,
+// 	Meta,
+// 	Legend,
+// 	ColorStylesStrict,
+// 	fetchJson,
+// 	WxTilesLayerSettings,
+// } from '../src/wxtiles';
 import '../src/wxtiles.css';
 
 import { Editor } from './visualStyleEditor';
+import { ColorStylesStrict, fetchJson } from '../src/utils/wxtools';
 
 let map: L.Map;
 let layerControl: L.Control.Layers;
@@ -30,7 +31,7 @@ async function fillDataSets(defaultDataset?: string, deafaultVariable?: string) 
 	let datasetsNames: string[];
 
 	try {
-		datasetsNames = await fetchJson(config.dataServer + '/datasets.json');
+		datasetsNames = await fetchJson<string[]>(config.dataServer + '/datasets.json');
 	} catch (e) {
 		console.log(e);
 		return;
@@ -301,43 +302,45 @@ function updateInfoPanel(e: L.LeafletMouseEvent | undefined) {
 	if (e) oldE = e;
 	else e = oldE; // restore 'e'
 	let content = `${e.latlng}<br>`;
-	map.eachLayer((layer) => {
-		if (layer instanceof WxTilesLayer) {
-			const tile = layer.getLayerInfoAtLatLon(e!.latlng);
-			const { min, max } = layer.getMinMax();
-			const ltime = layer.getTime();
-			content += tile
-				? `<div>
-				<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-				${layer.dataSource.name}=${tile.inStyleUnits.map((d) => d.toFixed(2)).join(',')} ${tile.styleUnits} (${min.toFixed(2)}, ${max.toFixed(2)}), time: ${ltime}<br>
-				</div>`
-				: '';
-		}
-	});
+	// TODO
+	// map.eachLayer((layer) => {
+	// 	if (layer instanceof WxTilesLayer) {
+	// 		const tile = layer.getLayerInfoAtLatLon(e!.latlng);
+	// 		const { min, max } = layer.getMinMax();
+	// 		const ltime = layer.getTime();
+	// 		content += tile
+	// 			? `<div>
+	// 			<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
+	// 			${layer.dataSource.name}=${tile.inStyleUnits.map((d) => d.toFixed(2)).join(',')} ${tile.styleUnits} (${min.toFixed(2)}, ${max.toFixed(2)}), time: ${ltime}<br>
+	// 			</div>`
+	// 			: '';
+	// 	}
+	// });
 
 	infoPanelEl.innerHTML = content;
 }
 
 function popupInfo(e: L.LeafletMouseEvent) {
 	let content = '';
-	map.eachLayer((layer) => {
-		if (layer instanceof WxTilesLayer) {
-			const tile = layer.getLayerInfoAtLatLon(e.latlng);
-			const time = layer.getTime();
-			content += tile
-				? `<div>
-					<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
-					${layer.dataSource.name}<br>
-					(in style Units = ${tile.inStyleUnits} ${tile.styleUnits})<br>
-					(in data Units = ${tile.data} ${layer.state.units})<br>
-					(time:${time})<br>
-					(instance:${layer.state.instance})<br>
-					(tilePoint:${tile.tilePoint.x},${tile.tilePoint.y})<br>
-				</div>`
-				: '';
-			// (tileCoords:${tile.tile.coords.x},${tile.tile.coords.y},zoom:${tile.tile.coords.z})<br>
-		}
-	});
+	// TODO
+	// map.eachLayer((layer) => {
+	// 	if (layer instanceof WxTilesLayer) {
+	// 		const tile = layer.getLayerInfoAtLatLon(e.latlng);
+	// 		const time = layer.getTime();
+	// 		content += tile
+	// 			? `<div>
+	// 				<div style="width:1em;height:1em;float:left;margin-right:2px;background:${tile.hexColor}"></div>
+	// 				${layer.dataSource.name}<br>
+	// 				(in style Units = ${tile.inStyleUnits} ${tile.styleUnits})<br>
+	// 				(in data Units = ${tile.data} ${layer.state.units})<br>
+	// 				(time:${time})<br>
+	// 				(instance:${layer.state.instance})<br>
+	// 				(tilePoint:${tile.tilePoint.x},${tile.tilePoint.y})<br>
+	// 			</div>`
+	// 			: '';
+	// 		// (tileCoords:${tile.tile.coords.x},${tile.tile.coords.y},zoom:${tile.tile.coords.z})<br>
+	// 	}
+	// });
 
 	L.popup()
 		.setLatLng(e.latlng)
