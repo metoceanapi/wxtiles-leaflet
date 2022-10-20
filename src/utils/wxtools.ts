@@ -575,6 +575,7 @@ export function WxTilesLogging(on: boolean) {
 export function WXLOG(...str: any) {
 	if (wxlogging) {
 		console.log(...str);
+		// console.trace(...str);
 	}
 }
 

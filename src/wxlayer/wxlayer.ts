@@ -61,12 +61,6 @@ export interface WxLayerAPI {
 	updateCurrentStyleObject(style?: WxColorStyleWeak, reload?: boolean, requestInit?: WxRequestInit): Promise<void>;
 }
 
-export interface XYZCtx3 extends XYZ {
-	ctxFill?: CanvasRenderingContext2D;
-	ctxText?: CanvasRenderingContext2D;
-	ctxStreamLines?: CanvasRenderingContext2D;
-}
-
 export class WxLayer {
 	protected readonly ext: string; // tiles extension. png by default
 	readonly variables: WxVars; // variables of the dataset if vector then [eastward, northward]
@@ -153,35 +147,28 @@ export class WxLayer {
 		[this.tilesURIs, this.time] = this._createURLsAndTime(time_);
 	} // _setURLsAndTime
 
+	async loadTile(tile: XYZ, requestInit?: WxRequestInit): Promise<WxRasterData> {
+		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit);
+	} // _loadTile
+
 	async preloadTime(time_: WxDate, tiles: XYZ[], requestInit?: WxRequestInit): Promise<void> {
 		const [tilesURIs] = this._createURLsAndTime(time_);
 		await Promise.allSettled(tiles.map((tile) => this.loader.cacheLoad(tile, tilesURIs, requestInit))); // fill up cache
 	} // _preloadTime
 
-	async reloadTiles(tiles: XYZCtx3[], requestInit?: WxRequestInit): Promise<void> {
+	/**
+	 * @description Load all tiles, draw it on canvas, save to cache and return
+	 * @param tiles
+	 * @param requestInit
+	 */
+	async reloadTiles(tiles: XYZ[], requestInit?: WxRequestInit): Promise<void> {
 		const tilesCache = new Map<string, WxRasterData>();
-		await Promise.allSettled(
-			tiles.map((tile) => {
-				if (!tile.ctxFill) {
-					// try to reuse canvases
-					const tileData = this.tilesCache.get(HashXYZ(tile));
-					if (tileData) {
-						tile.ctxFill = tileData.ctxFill;
-						tile.ctxText = tileData.ctxText;
-						tile.ctxStreamLines = tileData.ctxStreamLines;
-					}
-				}
-				return this._loadCacheDrawTile(tile, tilesCache, requestInit);
-			})
-		); // fill up cache
+		await Promise.allSettled(tiles.map((tile) => this._loadCacheDrawTile(tile, tilesCache, requestInit))); // fill up cache
+
 		if (!requestInit?.signal?.aborted) this.tilesCache = tilesCache; // replace cache
 	} // _reloadTiles
 
-	async loadTile(tile: XYZCtx3, requestInit?: WxRequestInit): Promise<WxRasterData> {
-		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit);
-	} // _loadTile
-
-	protected async _loadCacheDrawTile(tile: XYZCtx3, tilesCache: Map<string, WxRasterData>, requestInit?: WxRequestInit): Promise<WxRasterData> {
+	protected async _loadCacheDrawTile(tile: XYZ, tilesCache: Map<string, WxRasterData>, requestInit?: WxRequestInit): Promise<WxRasterData> {
 		const tileData = tilesCache.get(HashXYZ(tile));
 		if (tileData) return tileData;
 
@@ -196,10 +183,10 @@ export class WxLayer {
 			throw { status: 404 }; // happens when tile is cut by qTree or by Mask
 		}
 
-		tile.ctxFill = tile.ctxFill || create2DContext(256, 256);
-		tile.ctxText = tile.ctxFill; //  check if some browsers need separate canvas for text
-		tile.ctxStreamLines = this.variables.length === 2 ? tile.ctxStreamLines || create2DContext(256, 256) : tile.ctxFill;
-		const raster_data: WxRasterData = { ctxFill: tile.ctxFill, ctxText: tile.ctxText, ctxStreamLines: tile.ctxStreamLines, data };
+		const ctxFill = create2DContext(256, 256);
+		const ctxText = ctxFill; //  check if some browsers need separate canvas for text
+		const ctxStreamLines = this.variables.length === 2 ? create2DContext(256, 256) : ctxFill;
+		const raster_data: WxRasterData = { ctxFill, ctxText, ctxStreamLines, data };
 		this.painter.paint(raster_data);
 		tilesCache.set(HashXYZ(tile), raster_data);
 		return raster_data;
@@ -250,7 +237,7 @@ export class WxLayer {
 
 	protected _createURLsAndTime(time_?: WxDate): [string[], string] {
 		const time = this.wxdatasetManager.getValidTime(time_);
-		const tilesURIs = this.variables.map((variable) => this.wxdatasetManager.createURI({ variable, time, ext: this.ext }));
+		const tilesURIs = this.variables.map((variable) => this.wxdatasetManager.createURI(variable, time, this.ext));
 		return [tilesURIs, time];
 	} // _createURLsAndTime
 }

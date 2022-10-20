@@ -156,11 +156,11 @@ _dataString_ - string representation of a data (formated).
 _color_ - web color at the tick
 _pos_ - legend's X coord for the tick (0, legendSize)
 
-## setTimeAnimationMode(l = 2)
+## setCoarseLevel(l = 2)
 
 Prepares layer to be time-animated. Reduces level of detalization, so dramaticaly reduces downloaded data during animation.
 
-## unsetTimeAnimationMode()
+## unsetCoarseLevel()
 
 Restores level of detalization to the level's maximum.
 

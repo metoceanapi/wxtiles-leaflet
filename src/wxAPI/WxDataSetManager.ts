@@ -1,4 +1,5 @@
 import { fetchJson } from '../utils/wxtools';
+import { WxDate } from '../wxlayer/wxlayer';
 import { WxDatasetMeta, WxAPI, WxVariableMeta, WxInstances } from './wxAPI';
 
 /**
@@ -104,10 +105,11 @@ export class WxDataSetManager {
 	 * @argument {string} ext - zoom level of the dataset
 	 * @returns {string} - dataset's current URI ready for fetching tiles
 	 * */
-	createURI({ variable, time, ext = 'png' }: { variable: string; time?: string | number | Date; ext?: string }): string {
+	createURI(variable: string, time?: WxDate, ext?: string): string {
 		if (!this.meta.variablesMeta?.[variable]) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
-		time = this.getValidTime(time);
-		return `${this.wxapi.dataServerURL + this.datasetName}/${this.instance}/${variable}/${time}/{z}/{x}/{y}.${ext}`;
+		const time_ = this.getValidTime(time);
+		const rr = `${this.wxapi.dataServerURL + this.datasetName}/${this.instance}/${variable}/${time_}/{z}/{x}/{y}.${ext}`;
+		return rr;
 	}
 
 	/**
