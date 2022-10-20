@@ -22,11 +22,11 @@ class WxTile {
 interface TileEl extends HTMLCanvasElement {
 	wxtile: WxTile;
 }
-export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
+export class WxTileSource extends L.GridLayer implements WxLayerAPI {
+	// Wx implementation
 	protected animation = false;
 	protected animationSeed = 0;
 	protected readonly layer: WxLayer;
-
 	protected oldMaxZoom?: number; /* to restore coarse maximum zoom level to make tiles load faster during animation */
 	protected redrawRequested?: Promise<void>;
 
@@ -47,7 +47,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 
 		options?: L.GridLayerOptions;
 	}) {
-		WXLOG(`WxTilesLayer constructor (${wxdatasetManager.datasetName})`, { time, variables });
+		WXLOG(`WxTileSource constructor (${wxdatasetManager.datasetName})`, { time, variables });
 		super(options);
 		this.layer = new WxLayer({ time, variables, wxdatasetManager, ext, wxstyleName });
 	} // constructor
@@ -58,7 +58,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {WxVariableMeta} - The metadata of the current variable.
 	 */
 	getMetadata(): WxVariableMeta {
-		WXLOG(`WxTilesLayer getMetadata (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource getMetadata (${this.layer.wxdatasetManager.datasetName})`);
 		return { ...this.layer.currentMeta };
 	}
 
@@ -68,7 +68,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {WxVars} variables of the source.
 	 */
 	getVariables(): WxVars {
-		WXLOG(`WxTilesLayer getVariables (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource getVariables (${this.layer.wxdatasetManager.datasetName})`);
 		return [...this.layer.variables];
 	}
 
@@ -77,7 +77,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @memberof WxTileSource
 	 */
 	clearCache(): void {
-		WXLOG(`WxTilesLayer clearCache (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource clearCache (${this.layer.wxdatasetManager.datasetName})`);
 		this.layer.clearCache();
 	}
 
@@ -87,7 +87,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {WxColorStyleStrict} A copy of the current style of the source.
 	 */
 	getCurrentStyleObjectCopy(): WxColorStyleStrict {
-		WXLOG(`WxTilesLayer getCurrentStyleObjectCopy (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource getCurrentStyleObjectCopy (${this.layer.wxdatasetManager.datasetName})`);
 		return this.layer.getCurrentStyleObjectCopy();
 	}
 
@@ -97,7 +97,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {string} The current time of the source.
 	 */
 	getTime(): string {
-		WXLOG(`WxTilesLayer getTime (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource getTime (${this.layer.wxdatasetManager.datasetName})`);
 		return this.layer.getTime();
 	}
 
@@ -109,7 +109,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {Promise<void>} A promise that resolves when the time is set.
 	 */
 	async setTime(time?: WxDate, requestInit?: WxRequestInit): Promise<string> {
-		WXLOG(`WxTilesLayer setTime (${this.layer.wxdatasetManager.datasetName}) `, { time });
+		WXLOG(`WxTileSource setTime (${this.layer.wxdatasetManager.datasetName}) `, { time });
 		const oldtime = this.getTime();
 		this.layer.setURLsAndTime(time);
 		await this._reloadVisible(requestInit);
@@ -125,31 +125,21 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {Promise<void>} A promise that resolves when finished preload.
 	 */
 	async preloadTime(time: WxDate, requestInit?: WxRequestInit): Promise<void> {
-		WXLOG(`WxTilesLayer preloadTime (${this.layer.wxdatasetManager.datasetName}) `, { time });
+		WXLOG(`WxTileSource preloadTime (${this.layer.wxdatasetManager.datasetName}) `, { time });
 		return this.layer.preloadTime(time, this.coveringTiles(), requestInit);
 	}
 
 	/**
-	 * @description Get cpmprehencive information about the current point on map.
+	 * @description Get comprehencive information about the current point on map.
 	 * @memberof WxTileSource
-	 * @param {mapboxgl.LngLat} lnglat - Coordinates of the point.
-	 * @param {any} anymap - MAPBOX map instance.
+	 * @param {WxLngLat} lnglat - Coordinates of the point.
+	 * @param {any} anymap - map instance.
 	 * @returns {WxTileInfo | undefined } Information about the current point on map. Undefined if NODATA
 	 */
 	getLayerInfoAtLatLon(lnglat: WxLngLat, anymap: any): WxTileInfo | undefined {
-		WXLOG(`WxTilesLayer getLayerInfoAtLatLon (${this.layer.wxdatasetManager.datasetName})`, lnglat);
+		WXLOG(`WxTileSource getLayerInfoAtLatLon (${this.layer.wxdatasetManager.datasetName})`, lnglat);
 		// TODO
 		return this.layer.getTileData({ x: 0, y: 0, z: 0 }, { x: 0, y: 0 });
-	}
-
-	/**
-	 * @description Stops the animation.
-	 * @memberof WxTileSource
-	 */
-	async stopAnimation(): Promise<void> {
-		WXLOG(`WxTilesLayer stopAnimation (${this.layer.wxdatasetManager.datasetName})`);
-		this.animation = false;
-		return this._redrawTiles();
 	}
 
 	/**
@@ -158,10 +148,10 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 */
 	startAnimation(): void {
 		if (this.animation) return;
-		WXLOG(`WxTilesLayer startAnimation (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource startAnimation (${this.layer.wxdatasetManager.datasetName})`);
 		this.animation = true;
 		const animationStep = async (seed: number) => {
-			WXLOG(`WxTilesLayer animationStep (${this.layer.wxdatasetManager.datasetName})`);
+			WXLOG(`WxTileSource animationStep (${this.layer.wxdatasetManager.datasetName})`);
 			if (!this.animation || this.layer.nonanimatable) {
 				this.animation = false;
 				return;
@@ -176,6 +166,33 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	}
 
 	/**
+	 * @description Stops the animation.
+	 * @memberof WxTileSource
+	 */
+	async stopAnimation(): Promise<void> {
+		WXLOG(`WxTileSource stopAnimation (${this.layer.wxdatasetManager.datasetName})`);
+		this.animation = false;
+		return this._redrawTiles();
+	}
+
+	/** set coarse maximum zoom level to make tiles load faster during animation */
+	async setCoarseLevel(level: number = 2): Promise<void> {
+		WXLOG(`WxTileSource setCoarseLevel (${this.layer.wxdatasetManager.datasetName})`, { level });
+		this.oldMaxZoom = this.layer.wxdatasetManager.meta.maxZoom;
+		this.layer.wxdatasetManager.meta.maxZoom = Math.max(this.oldMaxZoom - level, 1);
+		return this._reloadVisible();
+	}
+
+	/** restore maximum zoom level */
+	async unsetCoarseLevel(): Promise<void> {
+		WXLOG(`WxTileSource unsetCoarseLevel (${this.layer.wxdatasetManager.datasetName})`);
+		if (this.oldMaxZoom) {
+			this.layer.wxdatasetManager.meta.maxZoom = this.oldMaxZoom;
+			return this._reloadVisible();
+		}
+	}
+
+	/**
 	 * @description Set the style of the source by its name from default styles.
 	 * @memberof WxTileSource
 	 * @param {string} wxstyleName - Name of the new style to set.
@@ -183,7 +200,7 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {Promise<void>} A promise that resolves when the style is set.
 	 */
 	async setStyleByName(wxstyleName: string, reload: boolean = true): Promise<void> {
-		WXLOG(`WxTilesLayer setStyleByName (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource setStyleByName (${this.layer.wxdatasetManager.datasetName})`);
 		return this.updateCurrentStyleObject(WxGetColorStyles()[wxstyleName], reload);
 	}
 
@@ -196,29 +213,70 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 	 * @returns {Promise<void>} A promise that resolves when the style is set.
 	 */
 	async updateCurrentStyleObject(style?: WxColorStyleWeak, reload: boolean = true, requestInit?: WxRequestInit): Promise<void> {
-		WXLOG(`WxTilesLayer createStyle (${this.layer.wxdatasetManager.datasetName})`, { style, reload });
+		WXLOG(`WxTileSource updateCurrentStyleObject (${this.layer.wxdatasetManager.datasetName})`, { style });
 		this.layer.updateCurrentStyleObject(style);
 		if (reload) return this._reloadVisible(requestInit);
 	}
 
-	/** set coarse maximum zoom level to make tiles load faster during animation */
-	async setCoarseLevel(level: number = 2): Promise<void> {
-		WXLOG(`WxTilesLayer setCoarseLevel (${this.layer.wxdatasetManager.datasetName})`, { level });
-		this.oldMaxZoom = this.layer.wxdatasetManager.meta.maxZoom;
-		this.layer.wxdatasetManager.meta.maxZoom = Math.max(this.oldMaxZoom - level, 1);
-		return this._reloadVisible();
+	protected async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
+		WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName})`);
+		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with new time
+
+		await Promise.allSettled(
+			this._ForEachWxTile(async (wxTile: WxTile): Promise<void> => {
+				wxTile.raster_data = await this.layer.loadTile(wxTile.coords); // fill raster_data from cache
+			}, '_reloadVisible')
+		);
+
+		if (!requestInit?.signal?.aborted) return this._redrawTiles();
 	}
 
-	/** restore maximum zoom level */
-	async unsetCoarseLevel(): Promise<void> {
-		WXLOG(`WxTilesLayer unsetCoarseLevel (${this.layer.wxdatasetManager.datasetName})`);
-		if (this.oldMaxZoom) {
-			this.layer.wxdatasetManager.meta.maxZoom = this.oldMaxZoom;
-			return this._reloadVisible();
+	protected _redrawTiles(): Promise<void> {
+		if (this.redrawRequested) return this.redrawRequested;
+		this.redrawRequested = new Promise((resolve) => {
+			requestAnimationFrame(() => {
+				WXLOG(`WxTileSource _redrawTiles (${this.layer.wxdatasetManager.datasetName})`);
+
+				this._ForEachWxTile((wxtile: WxTile): void => {
+					if (this.animation) {
+						this.layer.painter.imprintVectorAnimationLinesStep(wxtile.raster_data, this.animationSeed);
+						wxtile.draw(wxtile.raster_data.ctxStreamLines.canvas);
+					} else {
+						wxtile.draw(wxtile.raster_data.ctxFill.canvas);
+					}
+				}, '_redrawTiles');
+
+				resolve();
+				this.redrawRequested = undefined;
+			});
+		});
+
+		return this.redrawRequested;
+	} // _redrawTiles
+
+	protected coveringTiles(): XYZ[] {
+		WXLOG(`WxTileSource coveringTiles (${this.layer.wxdatasetManager.datasetName})`);
+		const res: XYZ[] = [];
+		for (const _tile in this._tiles) {
+			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
+			if (wxtile) res.push(wxtile.coords);
 		}
+
+		return res;
 	}
 
-	/** Leaflet's calling this, don't use it directly! */
+	protected _ForEachWxTile<T>(func: (wxtile: WxTile) => T, name: string): T[] {
+		WXLOG(`WxTileSource _ForEachWxTile (${this.layer.wxdatasetManager.datasetName}) func=${name}`);
+		const res: T[] = [];
+		for (const _tile in this._tiles) {
+			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
+			if (wxtile) res.push(func(wxtile));
+		}
+
+		return res;
+	} // _ForEachWxTile
+
+	/* Leaflet's API calling this, don't use it directly! */
 	protected createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
 		const ctx = create2DContext(256, 256);
 		const tileEl = ctx.canvas as TileEl;
@@ -229,66 +287,4 @@ export class WxTilesLayer extends L.GridLayer implements WxLayerAPI {
 
 		return tileEl;
 	} // createTile
-
-	protected async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
-		WXLOG(`WxTilesLayer _reloadVisible (${this.layer.wxdatasetManager.datasetName})`);
-		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with new time
-		const reload = async (wxTile: WxTile): Promise<void> => {
-			wxTile.raster_data = await this.layer.loadTile(wxTile.coords); // fill raster_data from cache
-		};
-
-		await Promise.allSettled(this._ForEachWxTile(reload));
-
-		if (!requestInit?.signal?.aborted) return this._redrawTiles();
-	}
-
-	protected coveringTiles(): XYZ[] {
-		WXLOG(`WxTilesLayer coveringTiles (${this.layer.wxdatasetManager.datasetName})`);
-		const res: XYZ[] = [];
-		for (const _tile in this._tiles) {
-			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
-			if (wxtile) res.push(wxtile.coords);
-		}
-
-		return res;
-	}
-
-	// protected _getCachedTile({ x, y }: { x: number; y: number }, zoom: number): WxTile | undefined {
-	// 	return <WxTile>(<any>this._tiles[`${x}:${y}:${zoom}`]?.el)?.wxtile;
-	// }
-
-	protected _ForEachWxTile<T>(func: (wxtile: WxTile) => T): T[] {
-		WXLOG(`WxTilesLayer _ForEachWxTile (${this.layer.wxdatasetManager.datasetName}) func=${func.name}`);
-		const res: T[] = [];
-		for (const _tile in this._tiles) {
-			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
-			if (wxtile) res.push(func(wxtile));
-		}
-
-		return res;
-	}
-
-	protected _redrawTiles(): Promise<void> {
-		if (this.redrawRequested) return this.redrawRequested;
-		this.redrawRequested = new Promise((resolve) => {
-			requestAnimationFrame(() => {
-				WXLOG(`WxTilesLayer _redrawTiles (${this.layer.wxdatasetManager.datasetName})`);
-				const draw = (wxtile: WxTile): void => {
-					if (this.animation) {
-						this.layer.painter.imprintVectorAnimationLinesStep(wxtile.raster_data, this.animationSeed);
-						wxtile.draw(wxtile.raster_data.ctxStreamLines.canvas);
-					} else {
-						wxtile.draw(wxtile.raster_data.ctxFill.canvas);
-					}
-				};
-
-				this._ForEachWxTile(draw);
-
-				resolve();
-				this.redrawRequested = undefined;
-			});
-		});
-
-		return this.redrawRequested;
-	} // _redrawTiles
-} // WxTilesLayer
+} // WxTileSource

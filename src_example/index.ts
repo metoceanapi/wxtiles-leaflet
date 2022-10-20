@@ -3,7 +3,7 @@ import L from 'leaflet'; // goes first always!
 
 import { WxAPI } from '../src/wxAPI/wxAPI';
 import { WxVars } from '../src/wxlayer/wxlayer';
-import { WxTilesLayer } from '../src/tilesLayer';
+import { WxTileSource } from '../src/tilesLayer';
 import { WxTilesLogging } from '../src/utils/wxtools';
 let map: L.Map;
 
@@ -33,7 +33,7 @@ async function start() {
 
 	const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
-	const wxlayer = new WxTilesLayer({
+	const wxlayer = new WxTileSource({
 		wxstyleName: 'base',
 		wxdatasetManager,
 		variables,
