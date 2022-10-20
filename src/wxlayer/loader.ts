@@ -25,7 +25,6 @@ export type SLine = SLinePoint[];
 export interface WxData {
 	data: DataPicture[];
 	slines: SLine[];
-	time: string;
 }
 
 export class Loader {
@@ -46,7 +45,7 @@ export class Loader {
 		const data = rawdata.map(processor); // preprocess all loaded data
 		this._vectorMagnitudesPrepare(data); // if vector data, prepare magnitudes
 		await this._applyMask(data, tile, tileType, !subCoords && rawdata.length === 1); // apply mask if needed
-		return { data, slines: this._createStreamLines(data), time: this.layer.getTime() };
+		return { data, slines: this._createStreamLines(data) };
 	}
 
 	async cacheLoad(

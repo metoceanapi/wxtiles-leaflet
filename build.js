@@ -3,7 +3,7 @@ const express = require('express');
 const { externalGlobalPlugin } = require('esbuild-plugin-external-global');
 
 const sharedConfig = {
-	entryPoints: ['src/wxtiles.ts'],
+	entryPoints: ['src/index.ts'],
 	bundle: true,
 	loader: {
 		'.woff': 'base64',
@@ -13,7 +13,7 @@ const sharedConfig = {
 			leaflet: 'window.L',
 		}),
 	],
-	target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
+	target: ['es6'],
 	globalName: 'wxtilesjs',
 	minify: true,
 };

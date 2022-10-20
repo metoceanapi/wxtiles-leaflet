@@ -1,10 +1,8 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import { WxAPI } from '../src/wxAPI/wxAPI';
-import { WxVars } from '../src/wxlayer/wxlayer';
-import { WxTileSource } from '../src/tilesLayer';
-import { WxTilesLogging } from '../src/utils/wxtools';
+import { WxTileSource, WxVars, WxAPI, WxTilesLogging } from '../src/index';
+
 let map: L.Map;
 
 async function start() {
@@ -20,7 +18,9 @@ async function start() {
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
 	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit: { headers: myHeaders } });
-	// WxTilesLogging(true);
+
+	WxTilesLogging(true);
+
 	const datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
 	// const variables: WxVars = ['air.temperature.at-2m'];
 	const variables: WxVars = ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'];

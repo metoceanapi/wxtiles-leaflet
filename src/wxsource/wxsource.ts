@@ -2,12 +2,12 @@
 // tile.style.pointerEvents = `auto`; tile.addEventListener(`click`, function(e) {console.log(`X=` + e.offsetX + ` Y=` + e.offsetY + ` ` + coords);});
 
 import L from 'leaflet';
-import { WXLOG, WxColorStyleStrict, WxColorStyleWeak, WxGetColorStyles, XYZ, create2DContext } from './utils/wxtools';
-import { WxVariableMeta } from './wxAPI/wxAPI';
-import { WxDataSetManager } from './wxAPI/WxDataSetManager';
-import type { WxLayerAPI, WxDate, WxVars, WxLngLat, WxRequestInit, WxTileInfo } from './wxlayer/wxlayer';
-import { WxLayer } from './wxlayer/wxlayer';
-import { WxRasterData } from './wxlayer/painter';
+import { WXLOG, WxColorStyleStrict, WxColorStyleWeak, WxGetColorStyles, XYZ, create2DContext } from '../utils/wxtools';
+import { WxVariableMeta } from '../wxAPI/wxAPI';
+import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
+import type { WxLayerAPI, WxDate, WxVars, WxLngLat, WxRequestInit, WxTileInfo } from '../wxlayer/wxlayer';
+import { WxLayer } from '../wxlayer/wxlayer';
+import { WxRasterData } from '../wxlayer/painter';
 
 class WxTile {
 	constructor(public coords: XYZ, public ctx: CanvasRenderingContext2D, public raster_data: WxRasterData) {
