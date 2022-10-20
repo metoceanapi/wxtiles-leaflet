@@ -22,6 +22,18 @@ class WxTile {
 interface TileEl extends HTMLCanvasElement {
 	wxtile: WxTile;
 }
+
+/**
+ * @class WxTileSource
+ * @description WxTileSource is a custom source for mapbox-gl-js.
+ * It is used to load and display weather data from the WxTiles server.
+ * @param {WxDate} time - Initial Time of the data to load.
+ * @param {WxVars} vars - Initial variables to load.
+ * @param {WxDataSetManager} datasetManager - WxDataSetManager instance.
+ * @param {string} wxstyleName - Initial style of the source.
+ * @param {'png' | undefined} ext - Tiles extension. png by default
+ * @param {L.GridLayerOptions} options - Leaflet's options of the layer. *
+ */
 export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 	// Wx implementation
 	protected animation = false;
