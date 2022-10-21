@@ -2,12 +2,12 @@
 // tile.style.pointerEvents = `auto`; tile.addEventListener(`click`, function(e) {console.log(`X=` + e.offsetX + ` Y=` + e.offsetY + ` ` + coords);});
 
 import L from 'leaflet';
-import { WXLOG, WxColorStyleStrict, WxColorStyleWeak, WxGetColorStyles, XYZ, create2DContext } from '../utils/wxtools';
+
+import { type WxDataSetManager } from '../wxAPI/WxDataSetManager';
+import { type WxColorStyleWeak, WxGetColorStyles, type XYZ, type WxColorStyleStrict, WXLOG, create2DContext } from '../utils/wxtools';
+import { type WxRequestInit, type WxDate, WxLayer, type WxVars, type WxTileInfo, type WxLayerAPI, type WxLngLat } from '../wxlayer/wxlayer';
 import { WxVariableMeta } from '../wxAPI/wxAPI';
-import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
-import type { WxLayerAPI, WxDate, WxVars, WxLngLat, WxRequestInit, WxTileInfo } from '../wxlayer/wxlayer';
-import { WxLayer } from '../wxlayer/wxlayer';
-import { WxRasterData } from '../wxlayer/painter';
+import { type WxRasterData } from '../wxlayer/painter';
 
 class WxTile {
 	constructor(public coords: XYZ, public ctx: CanvasRenderingContext2D, public raster_data: WxRasterData) {
@@ -15,6 +15,7 @@ class WxTile {
 	}
 
 	draw(canvas: HTMLCanvasElement) {
+		this.ctx.clearRect(0, 0, 256, 256);
 		this.ctx.drawImage(canvas, 0, 0);
 	}
 }
@@ -150,8 +151,12 @@ export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 	 */
 	getLayerInfoAtLatLon(lnglat: WxLngLat, anymap: any): WxTileInfo | undefined {
 		WXLOG(`WxTileSource getLayerInfoAtLatLon (${this.layer.wxdatasetManager.datasetName})`, lnglat);
-		// TODO
-		return this.layer.getTileData({ x: 0, y: 0, z: 0 }, { x: 0, y: 0 });
+		if (!this._map) return;
+		const zoom = this._map.getZoom();
+		const mapPixCoord = this._map.project(lnglat, zoom); // map pixel coordinates
+		const tileCoord = mapPixCoord.divideBy(256).floor(); // tile's coordinates
+		const tilePixel = mapPixCoord.subtract(tileCoord.multiplyBy(256)).floor(); // tile pixel coordinates
+		return this.layer.getTileData({ x: tileCoord.x, y: tileCoord.y, z: zoom }, tilePixel);
 	}
 
 	/**
@@ -159,7 +164,16 @@ export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 	 * @memberof WxTileSource
 	 */
 	startAnimation(): void {
-		if (this.animation) return;
+		if (this.animation) {
+			WXLOG(`WxTileSource startAnimation (${this.layer.wxdatasetManager.datasetName}) already started`);
+			return;
+		}
+
+		if (this.layer.nonanimatable) {
+			WXLOG(`WxTileSource startAnimation (${this.layer.wxdatasetManager.datasetName}) nonanimatable`);
+			return;
+		}
+
 		WXLOG(`WxTileSource startAnimation (${this.layer.wxdatasetManager.datasetName})`);
 		this.animation = true;
 		const animationStep = async (seed: number) => {
@@ -233,14 +247,18 @@ export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 	protected async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName})`);
 		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with new time
+		if (requestInit?.signal?.aborted) {
+			WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName}) aborted`);
+			return;
+		}
 
 		await Promise.allSettled(
 			this._ForEachWxTile(async (wxTile: WxTile): Promise<void> => {
 				wxTile.raster_data = await this.layer.loadTile(wxTile.coords); // fill raster_data from cache
 			}, '_reloadVisible')
 		);
-
-		if (!requestInit?.signal?.aborted) return this._redrawTiles();
+		
+		return this._redrawTiles();
 	}
 
 	protected _redrawTiles(): Promise<void> {
