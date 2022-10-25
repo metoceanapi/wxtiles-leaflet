@@ -1,38 +1,36 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import { WxTileSource, WxVars, WxAPI, WxTilesLogging, WxTileInfo } from '../src/index';
-import { LegendControl } from './LegendControl';
-
-let map: L.Map;
+import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, WxLegendControl, WxStyleEditorControl } from '../src/index';
 
 async function start() {
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
+	let map: L.Map;
 	map = L.map('map', {
 		center: [-40.75, 174.5],
 		zoom: 3,
 		zoomControl: false,
 	});
-	const legendControl = new LegendControl();
-	map.addControl(legendControl);
 
+	L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+	//******* WxTiles stuff *******//
+	WxTilesLogging(false);
 	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
 	// const dataServerURL = 'http://tiles3.metoceanapi.com/';
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
 	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit: { headers: myHeaders } });
 
-	WxTilesLogging(true);
-
 	const datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
 	const variables: WxVars = ['air.temperature.at-2m'];
 	// const variables: WxVars = ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'];
 
 	// const datasetName = 'ww3-ecmwf.global';
-	// const variables = ['wave.direction.mean'];
+	// const variables: WxVars = ['wave.direction.mean'];
 
 	// const datasetName = 'obs-radar.rain.nzl.national';
-	// const variables = ['reflectivity'];
+	// const variables: WxVars = ['reflectivity'];
 
 	const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
@@ -42,19 +40,30 @@ async function start() {
 		variables,
 		time: 0,
 		options: {
-			opacity: 1,
+			opacity: 0.5,
 		},
 	});
 
 	wxsource.addTo(map);
 	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
 
-	await wxsource.updateCurrentStyleObject({ streamLineColor: 'inverted', streamLineStatic: true }); // await always !!
-	legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
-	wxsource.startAnimation();
+	const legendControl = new WxLegendControl();
+	map.addControl(new (L.Control.extend(legendControl.extender()))({ position: 'topright' }));
+
+	const editor = new WxStyleEditorControl();
+	map.addControl(new (L.Control.extend(editor.extender()))({ position: 'topleft' }));
+
+	const styleChanged = (editor.onchange = async (style) => {
+		await wxsource.updateCurrentStyleObject(style);
+		const nstyle = wxsource.getCurrentStyleObjectCopy();
+		legendControl.drawLegend(nstyle);
+		editor.setStyle(nstyle);
+	});
+
+	await styleChanged({ streamLineColor: 'inverted', streamLineStatic: false }); // await always !!
 	console.log('time', wxsource.getTime());
 
-	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position
+	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
 	let busy = false;
 	await wxsource.updateCurrentStyleObject({ units: 'C', levels: undefined }); // await always !!
 	const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
@@ -64,8 +73,7 @@ async function start() {
 		busy = true;
 		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(e.latlng.wrap(), map);
 		if (tileInfo) {
-			await wxsource.updateCurrentStyleObject({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
-			legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
+			await styleChanged({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
 		}
 		busy = false;
 	}); //*/
@@ -110,7 +118,7 @@ async function start() {
 		i = (i + 1) % u.length;
 	}); //*/
 
-	/*/ DEMO: read lon lat data
+	// DEMO: read lon lat data
 	map.on('mousemove', (e) => {
 		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(e.latlng.wrap(), map);
 		if (tileInfo) {

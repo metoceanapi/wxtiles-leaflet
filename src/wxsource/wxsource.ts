@@ -241,6 +241,7 @@ export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 	async updateCurrentStyleObject(style?: WxColorStyleWeak, reload: boolean = true, requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxTileSource updateCurrentStyleObject (${this.layer.wxdatasetManager.datasetName})`, { style });
 		this.layer.updateCurrentStyleObject(style);
+		this.startAnimation();
 		if (reload) return this._reloadVisible(requestInit);
 	}
 
@@ -257,7 +258,7 @@ export class WxTileSource extends L.GridLayer implements WxLayerAPI {
 				wxTile.raster_data = await this.layer.loadTile(wxTile.coords); // fill raster_data from cache
 			}, '_reloadVisible')
 		);
-		
+
 		return this._redrawTiles();
 	}
 

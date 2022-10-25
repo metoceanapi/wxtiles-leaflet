@@ -1,36 +1,17 @@
-import { ColorStyleStrict } from '../src/wxtiles';
-import { WxGetColorSchemes, WxGetColorStyles } from '../src/wxtiles';
-import { ColorStyleWeak } from '../src/utils/wxtools';
-import L from 'leaflet';
+import { WxColorStyleStrict } from '../index';
+import { WxGetColorSchemes, WxGetColorStyles } from '../index';
+import { WxColorStyleWeak } from '../index';
 
-function createEl<K extends keyof HTMLElementTagNameMap>(container: HTMLElement, tag: K, params?: any): HTMLElementTagNameMap[K] {
-	const el = document.createElement(tag);
-	Object.assign(el, params);
-	container?.appendChild(el);
-	return el;
-}
+// // Leaflet
+// const editor = new WxStyleEditorControl();
+// 	map.addControl(new (L.Control.extend(editor.extender()))({ position: 'topleft' }));
 
-function JSONsort(o: any) {
-	if (Array.isArray(o)) {
-		return o.map(JSONsort);
-	} else if (typeof o === 'object' && o !== null) {
-		const keys = Object.keys(o)
-			// .map((a) => a.toUpperCase())
-			.sort((a, b) => {
-				const aa = a.toUpperCase();
-				const bb = b.toUpperCase();
-				return aa == bb ? 0 : aa > bb ? 1 : -1;
-			});
-		return keys.reduce((a, k) => {
-			a[k] = JSONsort(o[k]);
-			return a;
-		}, {});
-	}
-	return o;
-}
+// // MBox
+// const editor = new WxStyleEditorControl();
+// map.addControl(editor, 'top-left');
 
-export class Editor {
-	onchange?: (style: ColorStyleStrict) => void;
+export class WxStyleEditorControl {
+	onchange?: (style: WxColorStyleWeak) => void;
 
 	editorTextAreaEl: HTMLTextAreaElement;
 	editorDivEl: HTMLDivElement;
@@ -83,17 +64,21 @@ export class Editor {
 
 	maskSelect: HTMLSelectElement; // string
 
-	styleBase: ColorStyleStrict;
+	styleBase: WxColorStyleStrict;
 
-	constructor(map: L.Map, parent: HTMLElement, selectStyleEl: HTMLSelectElement, opts: { id: string; className: string }) {
+	// main container
+	parent: HTMLDivElement;
+
+	constructor() {
+		this.parent = document.createElement('div');
+		this.parent.className = 'mapboxgl-ctrl leaflet-control'; // in case of MapBox or Leaflet
+		this.parent.onmousemove = this.parent.ondblclick = this.parent.onclick = (e) => e.stopPropagation?.(); // in case of Leaflet
+
 		this.styleBase = WxGetColorStyles()['base'];
 
 		// helpers
-		const onwheel = L.DomEvent.stopPropagation;
-		const onmousedown = (e: MouseEvent) => map.dragging.disable() && onwheel(e);
-		const onmouseup = (e: MouseEvent) => map.dragging.enable() && onwheel(e);
 		// Top level container
-		const topmostDivEl = createEl(parent, 'div', { onclick: onwheel, ondblclick: onwheel, onwheel, onmousedown, onmouseup });
+		const topmostDivEl = createEl(this.parent, 'div', { onclick: onwheel, ondblclick: onwheel, onwheel, onmousedown, onmouseup });
 		// Button to open/close editor
 		const customStyleButtonEl = createEl(topmostDivEl, 'button', {
 			id: 'customStyleButton',
@@ -112,15 +97,15 @@ export class Editor {
 			} else {
 				customStyleHiddableDivEl.style.display = 'flex';
 				customStyleButtonEl.innerHTML = 'update Custom Style & Hide';
-				selectStyleEl.value = 'custom';
 			}
 		});
 
 		// Text area to edit custom style
 		this.editorTextAreaEl = createEl(customStyleHiddableDivEl, 'textarea', { id: 'customStyleTextArea', style: 'width: 20vw; height: 70vh' });
-		this.editorTextAreaEl.addEventListener('change', () => this._onTextChange());
+		this.editorTextAreaEl.readOnly = true;
+		// this.editorTextAreaEl.addEventListener('change', () => this._onTextChange());
 		// Editor container
-		this.editorDivEl = createEl(customStyleHiddableDivEl, 'div', opts);
+		this.editorDivEl = createEl(customStyleHiddableDivEl, 'div'); // TODO check
 		// Helpers
 		const addLabel = (id: string, br: boolean = true) => {
 			createEl(this.editorDivEl, 'label', { htmlFor: id, id: id + 'Label', className: id + 'LabelClass', textContent: id.replace(/Input|Select$/i, '') });
@@ -159,8 +144,8 @@ export class Editor {
 			return el;
 		};
 
-		const addSelectInput = (id: string): [HTMLSelectElement, HTMLInputElement] => {
-			const select = addSelect({ id: id + 'Select', br: false, opts: ['', 'inverted', 'fill', 'none', 'custom'] });
+		const addSelectInputColor = (id: string): [HTMLSelectElement, HTMLInputElement] => {
+			const select = addSelect({ id: id + 'Select', br: false, opts: ['inverted', 'fill', 'none', 'custom'] });
 			const input = addInput({ id: id + 'Input', type: 'color', onEvent: 'none' });
 			input.addEventListener('change', () => {
 				select.value = 'custom';
@@ -171,15 +156,15 @@ export class Editor {
 
 		this.parentInput = addInput({ id: 'parentInput', type: 'text' });
 		this.nameInput = addInput({ id: 'nameInput', type: 'text' });
-		this.fillSelect = addSelect({ id: 'fillSelect', opts: ['', 'gradient', 'solid', 'none'] });
+		this.fillSelect = addSelect({ id: 'fillSelect', opts: ['gradient', 'solid', 'none'] });
 
-		[this.isolineColorSelect, this.isolineColorInput] = addSelectInput('isolineColor');
+		[this.isolineColorSelect, this.isolineColorInput] = addSelectInputColor('isolineColor');
 		this.isolineTextInput = addInput({ id: 'isolineTextInput', type: 'checkbox' });
 
 		this.vectorFactorInput = addInput({ id: 'vectorFactorInput', type: 'number', min: '0.1', max: '10', step: '0.1' });
-		this.vectorTypeSelect = addSelect({ id: 'vectorTypeSelect', opts: ['', 'arrows', 'barbs', 'none'] });
-		[this.vectorColorSelect, this.vectorColorInput] = addSelectInput('vectorColor');
-		[this.streamLineColorSelect, this.streamLineColorInput] = addSelectInput('streamLineColor');
+		this.vectorTypeSelect = addSelect({ id: 'vectorTypeSelect', opts: ['arrows', 'barbs', 'none'] });
+		[this.vectorColorSelect, this.vectorColorInput] = addSelectInputColor('vectorColor');
+		[this.streamLineColorSelect, this.streamLineColorInput] = addSelectInputColor('streamLineColor');
 
 		this.streamLineSpeedFactorInput = addInput({ id: 'streamLineSpeedFactorInput', type: 'number', min: '0.1', max: '10', step: '0.1' });
 		this.streamLineStaticInput = addInput({ id: 'streamLineStaticInput', type: 'checkbox' });
@@ -204,29 +189,36 @@ export class Editor {
 		this.addDegreesInput = addInput({ id: 'addDegreesInput', type: 'number', min: '0', max: '360', step: '1' });
 		this.unitsInput = addInput({ id: 'unitsInput', type: 'text' });
 		this.extraUnitsInput = addInput({ id: 'extraUnitsInput', type: 'text' });
-		this.maskSelect = addSelect({ id: 'maskSelect', opts: ['', 'none', 'sea', 'land'] });
+		this.maskSelect = addSelect({ id: 'maskSelect', opts: ['none', 'sea', 'land'] });
 	}
 
-	getStyle(): ColorStyleStrict {
-		// deep copy from _getStyleFromTextArea, _getStyleFromDiv not needed as affected  the textarea already
-		return Object.assign({}, this.styleBase, this._getStyleFromTextArea() /*, this._getStyleFromDiv()*/);
+	// for Leaflet
+	extender() {
+		return { onAdd: () => this.onAdd(), onRemove: () => this.onRemove() };
 	}
 
-	setStyle(style: ColorStyleWeak): void {
-		this._setStyleToTextArea(style);
-		this._setStyleToDiv(style);
+	onAdd(/* map */) {
+		return this.parent;
 	}
 
-	// this.editorTextAreaEl is always modifyed by StyleFromDiv at any changes in the div
-	protected _getStyleFromTextArea(): ColorStyleWeak {
-		try {
-			return JSON.parse(this.editorTextAreaEl.value);
-		} catch (e) {
-			return e;
+	onRemove() {
+		this.parent.parentNode?.removeChild(this.parent);
+	}
+
+	getStyle(): WxColorStyleWeak {
+		return this._getStyleFromDiv();
+	}
+
+	setStyle(style: WxColorStyleWeak): void {
+		if (style.colorMap) {
+			delete style.colors;
+			delete style.levels;
 		}
+		this._setStyleToDiv(style);
+		this._setStyleToTextArea(this._getStyleFromDiv());
 	}
 
-	protected _getStyleFromDiv(): ColorStyleWeak {
+	protected _getStyleFromDiv(): WxColorStyleWeak {
 		const objFromValue = (field: string) => {
 			try {
 				return this[field].value ? JSON.parse(this[field].value) : undefined;
@@ -243,13 +235,13 @@ export class Editor {
 			return select.value || undefined;
 		};
 
-		const style: ColorStyleWeak = {
+		const style: WxColorStyleWeak = {
 			parent: this.parentInput.value, // string;
 			name: this.nameInput.value || undefined, //string;
-			fill: this.fillSelect.value || undefined, //string;
+			fill: (this.fillSelect.value as any) || undefined, //string;
 			isolineColor: colorFromSelectInput(this.isolineColorSelect, this.isolineColorInput), //string;
 			isolineText: this.isolineTextInput.checked, //boolean;
-			vectorType: this.vectorTypeSelect.value || undefined, //string;
+			vectorType: (this.vectorTypeSelect.value as any) || undefined, //string;
 			vectorColor: colorFromSelectInput(this.vectorColorSelect, this.vectorColorInput), //string;
 			vectorFactor: +this.vectorFactorInput.value, //number;
 			streamLineColor: colorFromSelectInput(this.streamLineColorSelect, this.streamLineColorInput), //string;
@@ -265,17 +257,17 @@ export class Editor {
 			addDegrees: +this.addDegreesInput.value, //number;
 			units: this.unitsInput.value || undefined, //string;
 			extraUnits: objFromValue('extraUnitsInput'), // Units; //{ [name: string]: [string, number, ?number] };
-			mask: this.maskSelect.value || undefined, // string;
+			mask: (this.maskSelect.value as any) || undefined, // string;
 		};
 
 		return style;
 	}
 
-	protected _setStyleToTextArea(style: ColorStyleWeak): void {
+	protected _setStyleToTextArea(style: WxColorStyleWeak): void {
 		this.editorTextAreaEl.value = JSON.stringify(JSONsort(style), null, 2);
 	}
 
-	protected _setStyleToDiv(style: ColorStyleWeak): void {
+	protected _setStyleToDiv(style: WxColorStyleWeak): void {
 		this.parentInput.value = style.parent || ''; // string;
 		this.nameInput.value = style.name || ''; //string;
 		this.fillSelect.value = style.fill || ''; //string;
@@ -295,7 +287,7 @@ export class Editor {
 		this.colorSchemeSelect.value = style.colorScheme || ''; //string;
 		this.colorsInput.value = style.colors?.length ? JSON.stringify(style.colors) : ''; // string[];
 		this.colorMapInput.value = style.colorMap?.length ? JSON.stringify(style.colorMap) : ''; // [number, string][];
-		this.levelsInput.value = style.levels?.length ? JSON.stringify(style.levels) : ''; // number[];
+		this.levelsInput.value = style.levels?.length ? JSON.stringify(style.levels.map((s) => +s.toFixed(2))) : ''; // number[];
 		this.blurRadiusInput.value = style.blurRadius?.toString() || ''; //number;
 		this.addDegreesInput.value = style.addDegrees?.toString() || ''; //number;
 		this.unitsInput.value = style.units || ''; //string;
@@ -304,23 +296,37 @@ export class Editor {
 	}
 
 	protected _onDivChange(): void {
-		const cleanUp = (obj: any) => {
-			Object.keys(obj).forEach((key) => {
-				if (obj[key] === undefined) delete obj[key];
-			});
-			return obj;
-		};
-
+		const style = this._getStyleFromDiv();
+		Object.keys(style).forEach((key) => (style[key] === undefined || style[key] === '' || !style[key].length) && delete style[key]);
 		// update text area
-		const style = Object.assign(this._getStyleFromTextArea(), cleanUp(this._getStyleFromDiv()));
-		this.editorTextAreaEl.value = JSON.stringify(style, null, 2);
+		this._setStyleToTextArea(style);
+		// call callback
 		this.onchange?.(this.getStyle());
 	}
+}
 
-	protected _onTextChange(): void {
-		// update div
-		const style = this._getStyleFromTextArea();
-		this._setStyleToDiv(style);
-		this.onchange?.(this.getStyle());
+function createEl<K extends keyof HTMLElementTagNameMap>(container: HTMLElement, tag: K, params?: any): HTMLElementTagNameMap[K] {
+	const el = document.createElement(tag);
+	Object.assign(el, params);
+	container?.appendChild(el);
+	return el;
+}
+
+function JSONsort(o: any) {
+	if (Array.isArray(o)) {
+		return o.map(JSONsort);
+	} else if (typeof o === 'object' && o !== null) {
+		const keys = Object.keys(o)
+			// .map((a) => a.toUpperCase())
+			.sort((a, b) => {
+				const aa = a.toUpperCase();
+				const bb = b.toUpperCase();
+				return aa == bb ? 0 : aa > bb ? 1 : -1;
+			});
+		return keys.reduce((a, k) => {
+			a[k] = JSONsort(o[k]);
+			return a;
+		}, {});
 	}
+	return o;
 }
