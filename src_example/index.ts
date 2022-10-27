@@ -1,7 +1,9 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, WxLegendControl, WxStyleEditorControl } from '../src/index';
+import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo } from '../src/index';
+import { WxLegendControl } from '../src/controls/WxLegendControl';
+import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
 
 async function start() {
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
@@ -16,11 +18,15 @@ async function start() {
 
 	//******* WxTiles stuff *******//
 	WxTilesLogging(false);
+	// const dataServerURL = 'http://localhost:9191/data/';
 	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
 	// const dataServerURL = 'http://tiles3.metoceanapi.com/';
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
 	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit: { headers: myHeaders } });
+
+	// const datasetName = 'wrf-ecmwf.gbr.national'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
+	// const variables: WxVars = ['air.temperature.at-2m'];
 
 	const datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
 	const variables: WxVars = ['air.temperature.at-2m'];
@@ -34,15 +40,16 @@ async function start() {
 
 	const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
-	const wxsource = new WxTileSource({
-		wxstyleName: 'base',
-		wxdatasetManager,
-		variables,
-		time: 0,
-		options: {
-			opacity: 0.5,
+	const wxsource = new WxTileSource(
+		{
+			wxdatasetManager,
+			variables,
 		},
-	});
+		{
+			opacity: 0.5,
+			attribution: 'WxTiles',
+		}
+	);
 
 	wxsource.addTo(map);
 	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
@@ -63,15 +70,16 @@ async function start() {
 	await styleChanged({ streamLineColor: 'inverted', streamLineStatic: false }); // await always !!
 	console.log('time', wxsource.getTime());
 
-	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
+	// DEMO (leaflet): more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
 	let busy = false;
 	await wxsource.updateCurrentStyleObject({ units: 'C', levels: undefined }); // await always !!
 	const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
 	const colMap: [number, string][] = levels.map((level) => [level, '#' + Math.random().toString(16).slice(2, 8) + 'ff']);
 	map.on('mousemove', async (e) => {
+		const pos = e.latlng;
 		if (busy) return;
 		busy = true;
-		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(e.latlng.wrap(), map);
+		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
 		if (tileInfo) {
 			await styleChanged({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
 		}
@@ -118,27 +126,28 @@ async function start() {
 		i = (i + 1) % u.length;
 	}); //*/
 
-	// DEMO: read lon lat data
+	// DEMO (leaflet): read lon lat data
 	map.on('mousemove', (e) => {
-		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(e.latlng.wrap(), map);
+		const pos = e.latlng; // (leaflet)
+		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
 		if (tileInfo) {
 			const { min, max } = wxsource.getMetadata();
-			let content = `lnglat=(${e.latlng.lng.toFixed(2)}, ${e.latlng.lat.toFixed(2)})<br>
-			dataset=${wxdatasetManager.datasetName}<br>
+			let content = `lnglat=(${pos.lng.toFixed(2)}, ${pos.lat.toFixed(2)})<br>
+			dataset=${wxsource.wxdatasetManager.datasetName}<br>
 			variables=${wxsource.getVariables()}<br>
 			style=${tileInfo.inStyleUnits.map((d) => d.toFixed(2))} ${tileInfo.styleUnits}<br>
 			source=${tileInfo.data.map((d) => d.toFixed(2))} ${tileInfo.dataUnits}<br>
 			min=${min.toFixed(2)} ${tileInfo.dataUnits}, max=${max.toFixed(2)} ${tileInfo.dataUnits}<br>
 			time=${wxsource.getTime()}`;
-			L.popup()
-				.setLatLng(e.latlng)
-				.setContent(content + `${e.latlng}`)
+			L.popup() // (leaflet)
+				.setLatLng(pos)
+				.setContent(content + `${pos}`)
 				.openOn(map);
 		}
 	}); //*/
 
 	/*/ DEMO: timesteps
-	const tlength = wxdatasetManager.getTimes().length;
+	const tlength = wxsource.wxdatasetManager.getTimes().length;
 	let t = 0;
 	const nextTimeStep = async () => {
 		await wxsource.setTime(t++ % tlength); // await always !!

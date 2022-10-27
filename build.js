@@ -1,20 +1,17 @@
 const esbuild = require('esbuild');
-const express = require('express');
 const { externalGlobalPlugin } = require('esbuild-plugin-external-global');
 
 const sharedConfig = {
 	entryPoints: ['src/index.ts'],
 	bundle: true,
 	loader: {
+		'.png': 'base64',
 		'.woff': 'base64',
+		'.fs': 'text',
+		'.vs': 'text',
 	},
-	plugins: [
-		externalGlobalPlugin({
-			leaflet: 'window.L',
-		}),
-	],
-	target: ['es6'],
-	globalName: 'wxtilesjs',
+	plugins: [externalGlobalPlugin({ leaflet: 'window.L' })],
+	target: 'es6',
 	minify: true,
 };
 
@@ -22,9 +19,9 @@ const sharedConfig = {
 esbuild
 	.build({
 		...sharedConfig,
+		globalName: 'wxtilesleaflet',
 		format: 'iife',
-		outfile: 'dist/web/wxtiles.js',
-		globalName: 'wxtilesjs',
+		outfile: 'dist/web/index.js',
 	})
 	.catch((e) => console.error(e.message));
 
@@ -33,6 +30,6 @@ esbuild
 	.build({
 		...sharedConfig,
 		format: 'esm',
-		outfile: 'dist/es/wxtiles.js',
+		outfile: 'dist/es/index.js',
 	})
 	.catch((e) => console.error(e.message));

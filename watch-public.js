@@ -1,6 +1,8 @@
 const esbuild = require('esbuild');
 const express = require('express');
 
+const PORT = process.env.PORT || 3000;
+
 esbuild
 	.build({
 		entryPoints: ['src_example/index.ts'],
@@ -9,8 +11,10 @@ esbuild
 		loader: {
 			'.png': 'base64',
 			'.woff': 'base64',
+			'.fs': 'text',
+			'.vs': 'text',
 		},
-		target: ['es2020', 'chrome80', 'safari13', 'edge89', 'firefox70'],
+		target: 'es2020',
 		format: 'iife',
 		outfile: 'public/script/script.js',
 		sourcemap: true,
@@ -28,8 +32,6 @@ esbuild
 	.then((result) => {
 		const app = express();
 		app.use(express.static('public'));
-
-		const PORT = 3002;
 
 		const url = `http://localhost:${PORT}`;
 		app.listen(PORT, () => {
