@@ -2,28 +2,34 @@ import { __units_default_preset } from '../defaults/uconv';
 import { __colorSchemes_default_preset } from '../defaults/colorschemes';
 import { __colorStyles_default_preset } from '../defaults/styles';
 
+export interface XYZ {
+	x: number;
+	y: number;
+	z: number;
+}
+
 export type UnitTuple = [string, number, number?];
 
 export interface Units {
-	[unit: string]: UnitTuple;
+	[unit: string]: UnitTuple | undefined;
 }
 
-export interface ColorSchemes {
-	[name: string]: string[];
+export interface WxColorSchemes {
+	[name: string]: string[] | undefined;
 }
 
 export type colorMapTuple = [number, string];
 
-export interface ColorStyleWeak {
+export interface WxColorStyleWeak {
 	parent?: string;
 	name?: string;
-	fill?: string;
-	isolineColor?: string;
+	fill?: 'none' | 'gradient' | 'solid';
+	isolineColor?: 'none' | 'inverted' | 'fill' | string;
 	isolineText?: boolean;
-	vectorType?: string;
-	vectorColor?: string;
+	vectorType?: 'none' | 'arrows' | 'barbs';
+	vectorColor?: 'none' | 'inverted' | 'fill' | string;
 	vectorFactor?: number;
-	streamLineColor?: string;
+	streamLineColor?: 'none' | 'inverted' | 'fill' | string;
 	streamLineSpeedFactor?: number;
 	streamLineGridStep?: number;
 	streamLineSteps?: number;
@@ -38,27 +44,27 @@ export interface ColorStyleWeak {
 	addDegrees?: number;
 	units?: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
-	mask?: string;
+	mask?: 'land' | 'sea' | 'none';
 }
 
 export interface ColorStylesWeakMixed {
-	[name: string]: ColorStyleWeak | ColorStyleWeak[];
+	[name: string]: WxColorStyleWeak | WxColorStyleWeak[] | undefined;
 }
 
 export interface ColorStylesIncomplete {
-	[name: string]: ColorStyleWeak;
+	[name: string]: WxColorStyleWeak | undefined;
 }
 
-export interface ColorStyleStrict extends ColorStyleWeak {
+export interface WxColorStyleStrict extends WxColorStyleWeak {
 	parent?: string;
 	name: string;
-	fill: string;
-	isolineColor: string;
+	fill: 'none' | 'gradient' | 'solid';
+	isolineColor: 'none' | 'inverted' | 'fill' | string;
 	isolineText: boolean;
-	vectorType: string;
-	vectorColor: string;
+	vectorType: 'none' | 'arrows' | 'barbs';
+	vectorColor: 'none' | 'inverted' | 'fill' | string;
 	vectorFactor: number;
-	streamLineColor: string;
+	streamLineColor: 'none' | 'inverted' | 'fill' | string;
 	streamLineSpeedFactor: number;
 	streamLineGridStep?: number;
 	streamLineSteps?: number;
@@ -73,25 +79,26 @@ export interface ColorStyleStrict extends ColorStyleWeak {
 	addDegrees: number;
 	units: string;
 	extraUnits?: Units; //{ [name: string]: [string, number, ?number] };
-	mask?: string;
+	mask?: 'land' | 'sea' | 'none';
 }
 
 export interface ColorStylesStrict {
-	[name: string]: ColorStyleStrict;
+	base: WxColorStyleStrict;
+	[name: string]: WxColorStyleStrict | undefined;
 }
 
 let _units: Units;
-let _colorSchemes: ColorSchemes;
+let _colorSchemes: WxColorSchemes;
 let _colorStylesUnrolled: ColorStylesStrict;
 
-export interface LibSetupObject {
+export interface WxTilesLibOptions {
 	colorStyles?: ColorStylesWeakMixed;
 	units?: Units;
-	colorSchemes?: ColorSchemes;
+	colorSchemes?: WxColorSchemes;
 }
 
 /// some random usefull stuff
-export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: LibSetupObject = {}): void {
+export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {} }: WxTilesLibOptions = {}): void {
 	WXLOG('WxTile lib setup: start');
 	_units = Object.assign({}, __units_default_preset, units);
 	_colorSchemes = Object.assign({}, colorSchemes, __colorSchemes_default_preset);
@@ -100,8 +107,14 @@ export function WxTilesLibSetup({ colorStyles = {}, units = {}, colorSchemes = {
 	WXLOG('WxTile lib setup: styles unrolled');
 
 	// Make sure fonts are loaded & ready!
-	document.fonts.load('32px barbs');
-	document.fonts.load('32px arrows');
+	try {
+		(async () => {
+			await document.fonts.load('32px barbs');
+			await document.fonts.load('32px arrows');
+		})();
+	} catch (e) {
+		WXLOG('WxTile lib setup: fonts not loaded');
+	}
 
 	WXLOG('WxTile lib setup is done.');
 }
@@ -110,7 +123,7 @@ export function WxGetColorStyles(): ColorStylesStrict {
 	return _colorStylesUnrolled;
 }
 
-export function WxGetColorSchemes(): ColorSchemes {
+export function WxGetColorSchemes(): WxColorSchemes {
 	return _colorSchemes;
 }
 
@@ -129,15 +142,17 @@ export function makeConverter(from: string, to: string, customUnits?: Units): Co
 	}
 
 	const localUnitsCopy = Object.assign({}, _units, customUnits);
-	if (!localUnitsCopy[from] || !localUnitsCopy[to]) {
+	const fromUnit = localUnitsCopy[from];
+	const toUnit = localUnitsCopy[to];
+	if (!fromUnit || !toUnit) {
 		WXLOG('Inconvertible units. Trivial converter');
 		return c; // Inconvertible
 	}
 
-	const [fromUnit, fromFactor, fromOffset] = localUnitsCopy[from];
-	const [toUnit, toFactor, toOffset] = localUnitsCopy[to];
+	const [fromUnitBase, fromFactor, fromOffset] = fromUnit;
+	const [toUnitBase, toFactor, toOffset] = toUnit;
 
-	if (fromUnit !== toUnit || !fromFactor || !toFactor) {
+	if (fromUnitBase !== toUnitBase || !fromFactor || !toFactor) {
 		WXLOG('Inconvertible units. Trivial converter');
 		return c; // trivial
 	}
@@ -160,16 +175,18 @@ function unrollStylesParent(stylesArrInc: ColorStylesWeakMixed): ColorStylesStri
 		}
 	}
 
+	const baseStyleCopy = Object.assign({}, __colorStyles_default_preset.base);
 	// recursive function to apply inheritance
-	const inherit = (stylesInc: ColorStylesIncomplete, name: string): ColorStyleStrict => {
-		if (name === 'base') return __colorStyles_default_preset.base; // nothing to inherit
+	const inherit = (stylesInc: ColorStylesIncomplete, name: string): WxColorStyleStrict => {
+		if (name === 'base') return baseStyleCopy; // nothing to inherit
 		const style = stylesInc[name]; // there are no arrays by this point
+		if (!style) return baseStyleCopy; // nothing to inherit
 		if (!style.parent || !(style.parent in stylesInc)) style.parent = 'base';
 		const parent = inherit(stylesInc, style.parent); // After inheritance it is FULL ColorStyle
 		return Object.assign(style, Object.assign({}, parent, style, { parent: 'base' })); // this ugly construction changes style 'in place' so it is a soft-copy. huray!
 	};
 
-	const styles: ColorStylesStrict = {};
+	const styles: ColorStylesStrict = { base: baseStyleCopy };
 	for (const name in stylesInc) {
 		styles[name] = inherit(stylesInc, name);
 	}
@@ -197,8 +214,25 @@ function cacheURIPromise<T>(fn: CacheableURILoaderPromiseFunc<T>): CacheableURIL
 	};
 }
 
+export type UriLoaderPromiseFunc<T> = (url: string, ...props: any) => Promise<T>;
+export function cacheUriPromise<T>(fn: UriLoaderPromiseFunc<T>): UriLoaderPromiseFunc<T> {
+	const cache = new Map<string, Promise<T>>();
+	return (url, ...props) => {
+		const cached = cache.get(url);
+		if (cached) return cached;
+		const promise = fn(url, ...props);
+		// cache any result (even falures)
+		cache.set(url, promise);
+		// except aborted (images), so they could be reloaded
+		promise.catch((e) => {
+			e.name === 'AbortError' && cache.delete(url);
+		});
+		return promise;
+	};
+}
+
 // abortable 'loadImage'
-async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
+export async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
 	//// Method 0
 	return createImageBitmap(await (await fetch(url, requestInit)).blob());
 
@@ -236,7 +270,7 @@ async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageB
 
 interface IntegralPare {
 	integral: Uint32Array;
-	integralNZ: Uint32Array;
+	integralNZ: Uint32Array | null;
 }
 
 export interface DataPicture {
@@ -251,10 +285,17 @@ export interface DataIntegral extends DataPicture {
 	radius: number;
 }
 
+export function create2DContext(width: number, height: number, willReadFrequently = true): CanvasRenderingContext2D {
+	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d', {
+		willReadFrequently,
+	});
+	if (!context) throw new Error('Cannot get canvas context');
+	return context;
+}
+
 function imageToData(image: ImageBitmap): ImageData {
 	const { width, height } = image;
-	const context = Object.assign(document.createElement('canvas'), { width, height, imageSmoothingEnabled: false }).getContext('2d');
-	if (!context) throw new Error('Error: can not create context. Catastrophe');
+	const context = create2DContext(width, height);
 	context.drawImage(image, 0, 0);
 	return context.getImageData(0, 0, width, height);
 }
@@ -290,16 +331,8 @@ function dataToIntegral(imData: ImageData): DataIntegral {
 	return { raw, dmin, dmax, dmul, integral, radius: 0 };
 }
 
-// http://webpjs.appspot.com/ = webp lossless decoder
-// https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v0.6.1/README.webp_js
-async function loadDataIntegral(url: string, requestInit?: RequestInit): Promise<DataIntegral> {
-	// const image = await loadImage(url, signal); ///*Old approach to solve 'crossorigin' and 'abort'*/ const img = await loadImage(URL.createObjectURL(await (await fetch(url, { signal, cache: 'force-cache' })).blob()));
-	// const context = Object.assign(document.createElement('canvas'), { width: 258, height: 258, imageSmoothingEnabled: false }).getContext('2d');
-	// if (!context) return Promise.reject();
-	// context.drawImage(image, 0, 0);
-	// return pixelsToData(context.getImageData(0, 0, 258, 258));
+export async function loadDataIntegral(url: string, requestInit?: RequestInit): Promise<DataIntegral> {
 	return dataToIntegral(await loadImageData(url, requestInit));
-	// return dataToIntegral(await loadImageData(url, signal));
 }
 
 interface AbortControllerHolder {
@@ -368,7 +401,7 @@ function integralImage(raw: Uint16Array): IntegralPare {
 	const integral = new Uint32Array(258 * 258);
 	// The main Idea of integralNZ is to calculate the amount of non zero values,
 	// so in the Blur algorithm it can be used for 'averaging' instead of actual area of BoxBlur frame
-	const integralNZ = new Uint32Array(258 * 258);
+	let integralNZ: Uint32Array | null = new Uint32Array(258 * 258);
 
 	integral[0] = raw[0]; // upper left value
 	integralNZ[0] = raw[0] === 0 ? 0 : 1; // upper left value
@@ -388,6 +421,9 @@ function integralImage(raw: Uint16Array): IntegralPare {
 			integralNZ[i] = (raw[i] === 0 ? 0 : 1) + integralNZ[i - 258] + integralNZ[i - 1] - integralNZ[i - 258 - 1];
 		}
 	}
+
+	// 66564 is the maximum value of the integral image
+	// integralNZ[66563] === 66564 && (integralNZ = null); // if all values are not 0, then no need to use it
 
 	return { integral, integralNZ };
 }
@@ -409,11 +445,16 @@ export function blurData(im: DataIntegral, radius: number): DataIntegral {
 			const i1 = s * (y - ry - 1) + x;
 			const i2 = s * (y + ry) + x;
 
-			const ANZ = integralNZ[i1 - rx - 1];
-			const BNZ = integralNZ[i1 + rx];
-			const CNZ = integralNZ[i2 - rx - 1];
-			const DNZ = integralNZ[i2 + rx];
-			const sumNZ = ANZ + DNZ - BNZ - CNZ; // amount of non Zero values
+			let sumNZ: number;
+			if (integralNZ) {
+				const ANZ = integralNZ[i1 - rx - 1];
+				const BNZ = integralNZ[i1 + rx];
+				const CNZ = integralNZ[i2 - rx - 1];
+				const DNZ = integralNZ[i2 + rx];
+				sumNZ = ANZ + DNZ - BNZ - CNZ; // amount of non Zero values
+			} else {
+				sumNZ = (2 * rx + 1) * (2 * ry + 1); // all values are non Zero
+			}
 
 			const A = integral[i1 - rx - 1];
 			const B = integral[i1 + rx];
@@ -470,8 +511,13 @@ export function HEXtoRGBA(c: string): number {
 }
 
 // json loader helper
-export async function fetchJson(url: RequestInfo, requestInit?: RequestInit) {
-	return (await fetch(url, requestInit)).json();
+export async function fetchJson<T = any>(url: RequestInfo, requestInit?: RequestInit): Promise<T> {
+	const response = await fetch(url, requestInit);
+	if (!response.ok) {
+		throw new Error('error:' + url + ' - ' + response.statusText);
+	}
+
+	return response.json();
 }
 
 export function createEl(tagName: string, className = '', container?: HTMLElement): HTMLElement {
@@ -528,11 +574,20 @@ export function WxTilesLogging(on: boolean) {
 
 export function WXLOG(...str: any) {
 	if (wxlogging) {
-		console.trace(...str);
+		console.log(...str);
 	}
 }
 
 export function refineColor(c: string): string {
 	// convert short form of color into long  #25f => #2255ff
 	return c[0] === '#' && c.length === 4 ? '#' + c[1] + c[1] + c[2] + c[2] + c[3] + c[3] : c;
+}
+
+export function uriXYZ(uri: string, { x, y, z }: XYZ): string {
+	return uri.replace('{x}', `${x}`).replace('{y}', `${y}`).replace('{z}', `${z}`);
+	// return uri.replace('{x}', x.toString()).replace('{y}', y.toString()).replace('{z}', z.toString());
+}
+
+export function HashXYZ({ x, y, z }: XYZ): string {
+	return `${z}-${x}-${y}`;
 }
