@@ -52,7 +52,7 @@ async function start() {
 
 	const apiControl = new WxAPIControl(wxapi, datasetName, variables[0]);
 	map.addControl(new (L.Control.extend(apiControl.extender()))({ position: 'topleft' }));
-	apiControl.onchange = async (datasetName: string, variable: string): Promise<WxTileSource> => {
+	apiControl.onchange = async (datasetName: string, variable: string): Promise<void> => {
 		const variables: WxVars = [variable];
 		(variable.includes('eastward') && variables.push(variable.replace('eastward', 'northward'))) || // add northward variable for wind and current
 			(variable.includes('northward') && variables.unshift(variable.replace('northward', 'eastward'))); // add eastward variable for wind and current
@@ -62,8 +62,7 @@ async function start() {
 		await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
 
 		timeControl.updateSource(wxsource);
-		editor.onchange?.(wxsource.getCurrentStyleObjectCopy());
-		return wxsource;
+		await editor.onchange?.(wxsource.getCurrentStyleObjectCopy());
 	};
 
 	const timeControl = new WxTimeControl(10, wxsource);
@@ -77,6 +76,7 @@ async function start() {
 		legendControl.drawLegend(nstyle);
 		editor.setStyle(nstyle);
 	};
+	editor.onchange(wxsource.getCurrentStyleObjectCopy());
 
 	const infoControl = new WxInfoControl();
 	map.addControl(new (L.Control.extend(infoControl.extender()))({ position: 'bottomleft' }));

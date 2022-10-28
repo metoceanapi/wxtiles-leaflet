@@ -13,7 +13,7 @@ export class WxAPIControl {
 	private readonly datasets: HTMLSelectElement;
 	private readonly variables: HTMLSelectElement;
 
-	onchange?: (dataset: string, variable: string) => void;
+	onchange?: (dataset: string, variable: string) => Promise<void>;
 
 	constructor(private readonly wxapi: WxAPI, dataset?: string, variable?: string) {
 		const div = document.createElement('div');
@@ -33,8 +33,9 @@ export class WxAPIControl {
 		this.datasets = document.createElement('select');
 		div.appendChild(this.datasets);
 		this.fillDatasets(dataset, variable);
-		this.datasets.addEventListener('change', () => {
-			this.fillVariables();
+		this.datasets.addEventListener('change', async () => {
+			await this.fillVariables();
+			await this.onchange?.(this.datasets.value, this.variables.value);
 		});
 
 		const variableslabel = document.createElement('label');
@@ -51,7 +52,7 @@ export class WxAPIControl {
 		this.variables.value = variable || '';
 	}
 
-	async fillDatasets(dataset?: string, variable?: string) {
+	async fillDatasets(dataset?: string, variable?: string): Promise<void> {
 		this.datasets.options.length = 0;
 		(await this.wxapi.getAllDatasetsNames()).forEach((dataset) => {
 			const option = document.createElement('option');
@@ -62,10 +63,10 @@ export class WxAPIControl {
 
 		dataset && (this.datasets.value = dataset);
 
-		this.fillVariables(variable);
+		await this.fillVariables(variable);
 	}
 
-	async fillVariables(variable?: string) {
+	async fillVariables(variable?: string): Promise<void> {
 		this.variables.options.length = 0;
 		const dataset = this.datasets.value;
 		(await this.wxapi.getDatasetVariables(dataset)).forEach((variable) => {
