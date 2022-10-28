@@ -4,6 +4,9 @@ import L from 'leaflet'; // goes first always!
 import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo } from '../src/index';
 import { WxLegendControl } from '../src/controls/WxLegendControl';
 import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
+import { WxInfoControl } from '../src/controls/WxInfoControl';
+import { WxTimeControl } from '../src/controls/WxTimeControl ';
+import { WxAPIControl } from '../src/controls/WxAPIControl';
 
 async function start() {
 	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
@@ -38,39 +41,48 @@ async function start() {
 	// const datasetName = 'obs-radar.rain.nzl.national';
 	// const variables: WxVars = ['reflectivity'];
 
-	const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
+	const frameworkOptions = { opacity: 0.5, attribution: 'WxTiles' };
 
-	const wxsource = new WxTileSource(
-		{
-			wxdatasetManager,
-			variables,
-		},
-		{
-			opacity: 0.5,
-			attribution: 'WxTiles',
-		}
-	);
-
-	wxsource.addTo(map);
-	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+	let wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
+	map.addLayer(wxsource);
 
 	const legendControl = new WxLegendControl();
 	map.addControl(new (L.Control.extend(legendControl.extender()))({ position: 'topright' }));
+	legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
+
+	const apiControl = new WxAPIControl(wxapi, datasetName, variables[0]);
+	map.addControl(new (L.Control.extend(apiControl.extender()))({ position: 'topleft' }));
+	apiControl.onchange = async (datasetName: string, variable: string): Promise<WxTileSource> => {
+		const variables: WxVars = [variable];
+		(variable.includes('eastward') && variables.push(variable.replace('eastward', 'northward'))) || // add northward variable for wind and current
+			(variable.includes('northward') && variables.unshift(variable.replace('northward', 'eastward'))); // add eastward variable for wind and current
+		map.removeLayer(wxsource);
+		wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
+		map.addLayer(wxsource);
+		await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+
+		timeControl.updateSource(wxsource);
+		editor.onchange?.(wxsource.getCurrentStyleObjectCopy());
+		return wxsource;
+	};
+
+	const timeControl = new WxTimeControl(10, wxsource);
+	map.addControl(new (L.Control.extend(timeControl.extender()))({ position: 'topleft' }));
 
 	const editor = new WxStyleEditorControl();
 	map.addControl(new (L.Control.extend(editor.extender()))({ position: 'topleft' }));
-
-	const styleChanged = (editor.onchange = async (style) => {
+	editor.onchange = async (style) => {
 		await wxsource.updateCurrentStyleObject(style);
 		const nstyle = wxsource.getCurrentStyleObjectCopy();
 		legendControl.drawLegend(nstyle);
 		editor.setStyle(nstyle);
-	});
+	};
 
-	await styleChanged({ streamLineColor: 'inverted', streamLineStatic: false }); // await always !!
-	console.log('time', wxsource.getTime());
+	const infoControl = new WxInfoControl();
+	map.addControl(new (L.Control.extend(infoControl.extender()))({ position: 'bottomleft' }));
+	map.on('mousemove', (e) => infoControl.update(wxsource, map, e.latlng.wrap()));
 
-	// DEMO (leaflet): more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
+	/*/ DEMO (leaflet): more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
 	let busy = false;
 	await wxsource.updateCurrentStyleObject({ units: 'C', levels: undefined }); // await always !!
 	const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
@@ -81,7 +93,7 @@ async function start() {
 		busy = true;
 		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
 		if (tileInfo) {
-			await styleChanged({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
+			await editor.onchange?.({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
 		}
 		busy = false;
 	}); //*/
@@ -126,7 +138,7 @@ async function start() {
 		i = (i + 1) % u.length;
 	}); //*/
 
-	// DEMO (leaflet): read lon lat data
+	/*/ DEMO (leaflet): read lon lat data
 	map.on('mousemove', (e) => {
 		const pos = e.latlng; // (leaflet)
 		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
