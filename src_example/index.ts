@@ -115,7 +115,7 @@ async function start() {
 
 	await apiControl.onchange(datasetName, variables[0]); // initial load
 
-	// DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
+	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
 	if (wxsource) {
 		let busy = false;
 		await wxsource.updateCurrentStyleObject({ levels: undefined }); // await always !!
@@ -132,7 +132,7 @@ async function start() {
 		});
 	} //*/
 
-	// DEMO: abort
+	/*/ DEMO: abort
 	if (wxsource) {
 		const abortController = new AbortController();
 		console.log('setTime(5)');
@@ -144,7 +144,7 @@ async function start() {
 		console.log('setTime(5) done'); 
 	}//*/
 
-	// DEMO: preload a timestep
+	/*/ DEMO: preload a timestep
 	map.once('click', async () => {
 		if (!wxsource) return;
 		console.log('no preload time=5');
@@ -168,7 +168,7 @@ async function start() {
 		});
 	}); //*/
 
-	// DEMO: change style's units
+	/*/ DEMO: change style's units
 	let i = 0;
 	map.on('click', async () => {
 		if (!wxsource) return;
@@ -178,7 +178,7 @@ async function start() {
 		i = (i + 1) % u.length;
 	}); //*/
 
-	// DEMO : read lon lat data
+	/*/ DEMO : read lon lat data
 	map.on('mousemove', (e) => {
 		if (!wxsource) return;
 		const pos = position(e); //
@@ -188,7 +188,7 @@ async function start() {
 		}
 	}); //*/
 
-	// DEMO: timesteps
+	/*/ DEMO: timesteps
 	let t = 0;
 	const nextTimeStep = async () => {
 		if (!wxsource) return;
@@ -198,7 +198,7 @@ async function start() {
 	setTimeout(nextTimeStep, 2000);
 	//*/
 
-	// DEMO: Dynamic blur effect /
+	/*/ DEMO: Dynamic blur effect /
 	let b = 0;
 	let db = 1;
 	const nextAnim = async () => {
