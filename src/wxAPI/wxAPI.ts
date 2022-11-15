@@ -22,6 +22,8 @@ export interface WxVariableMeta {
 	units: string;
 	min: number;
 	max: number;
+	standard_name?: string;
+	vector?: [string, string];
 }
 
 export interface WxVariablesMetas {
@@ -51,6 +53,9 @@ export interface WxDatasetMeta {
 	maxZoom: number;
 	times: string[];
 	boundaries?: WxAllBoundariesMeta;
+	sourceID?: string;
+	baseAtmosphericModel?: string;
+	model?: string;
 }
 
 export interface WxAPIOptions extends WxTilesLibOptions {

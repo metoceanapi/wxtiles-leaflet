@@ -6,7 +6,7 @@ import {
 	type XYZ,
 	HashXYZ,
 	RGBtoHEX,
-	type DataPicture,
+	type DataPictures,
 	create2DContext,
 	type WxColorStyleWeak,
 	WXLOG,
@@ -33,12 +33,12 @@ export interface WxTileInfo {
 }
 
 export type WxVars = [string] | [string, string];
+export type WxURIs = [string] | [string, string];
 
 export interface WxLngLat {
 	lng: number;
 	lat: number;
 }
-
 
 export interface WxLayerOptions {
 	variables: WxVars;
@@ -55,7 +55,7 @@ export class WxLayer {
 	readonly currentMeta: WxVariableMeta;
 
 	protected time: string;
-	tilesURIs: string[];
+	tilesURIs: WxURIs;
 
 	style: WxColorStyleStrict;
 	CLUT: RawCLUT;
@@ -180,7 +180,7 @@ export class WxLayer {
 			if (!meta) throw new Error(`WxTileSource ${this.wxdatasetManager.datasetName}: variable ${v} is not valid`);
 			return meta;
 		});
-		let { min, max, units } = metas[0];
+		let { min, max, units, vector } = metas[0];
 		if (this.variables.length > 1) {
 			// for the verctor field we need to get the min and max of the vectors' length
 			// but convert and calculate ALL vector length just for that is too much
@@ -192,11 +192,11 @@ export class WxLayer {
 			// tese values arn't real! but they are good enough for the estimation
 		}
 
-		return { min, max, units };
+		return { min, max, units, vector };
 	} // _getCurrentMeta
 
 	// x, y - pixel on tile
-	protected _getPixelInfo({ x, y }: { x: number; y: number }, data: DataPicture[]): { raw: number[]; data: number[] } | undefined {
+	protected _getPixelInfo({ x, y }: { x: number; y: number }, data: DataPictures): { raw: number[]; data: number[] } | undefined {
 		const index = (y + 1) * 258 + (x + 1);
 		if (!data?.[0]?.raw?.[index]) return; // check if data is loaded and the pixel is not empty
 		return {
@@ -210,9 +210,9 @@ export class WxLayer {
 		return new RawCLUT(style, units, [min, max], this.variables.length === 2);
 	} // _prepareCLUTf
 
-	protected _createURLsAndTime(time_?: WxDate): [string[], string] {
+	protected _createURLsAndTime(time_?: WxDate): [WxURIs, string] {
 		const time = this.wxdatasetManager.getValidTime(time_);
-		const tilesURIs = this.variables.map((variable) => this.wxdatasetManager.createURI(variable, time, this.ext));
+		const tilesURIs = <WxURIs>this.variables.map((variable) => this.wxdatasetManager.createURI(variable, time, this.ext));
 		return [tilesURIs, time];
 	} // _createURLsAndTime
 }

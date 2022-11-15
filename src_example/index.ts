@@ -8,108 +8,145 @@ import { WxInfoControl } from '../src/controls/WxInfoControl';
 import { WxTimeControl } from '../src/controls/WxTimeControl ';
 import { WxAPIControl } from '../src/controls/WxAPIControl';
 
+start();
+
+const OPACITY = 1;
+
+// this is universal function for Leaflet and Mapbox.
+// Functions below are just framework specific wrappers for this universal function
+// start() is the fully interchangable function for Leaflet and Mapbox
 async function start() {
-	// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
-	let map: L.Map;
-	map = L.map('map', {
-		center: [-40.75, 174.5],
-		zoom: 3,
-		zoomControl: false,
-	});
-
-	L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-	//******* WxTiles stuff *******//
+	const map = await initFrameWork();
+	addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
 	WxTilesLogging(false);
-	// const dataServerURL = 'http://localhost:9191/data/';
-	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+	const dataServerURL = 'http://localhost:9191/data/';
+	// const dataServerURL = 'https://tiles.metoceanapi.com/data/';
 	// const dataServerURL = 'http://tiles3.metoceanapi.com/';
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
 	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit: { headers: myHeaders } });
 
-	// const datasetName = 'wrf-ecmwf.gbr.national'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
-	// const variables: WxVars = ['air.temperature.at-2m'];
+	// let datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
+	// let variables: WxVars = ['air.temperature.at-2m'];
+	// let variables: WxVars = ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'];
 
-	const datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
-	const variables: WxVars = ['air.temperature.at-2m'];
-	// const variables: WxVars = ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'];
+	let datasetName = 'ww3-ecmwf.global';
+	let variables: WxVars = ['wave.direction.mean'];
 
-	// const datasetName = 'ww3-ecmwf.global';
-	// const variables: WxVars = ['wave.direction.mean'];
+	// let datasetName = 'obs-radar.rain.nzl.national';
+	// let variables: WxVars = ['reflectivity'];
 
-	// const datasetName = 'obs-radar.rain.nzl.national';
-	// const variables: WxVars = ['reflectivity'];
+	// get datasetName from URL
+	let time = '';
+	let zoom = 0;
+	let lat = 0;
+	let lng = 0;
+	let bearing = 0;
+	let pitch = 0;
+	const urlParams = window.location.toString().split('#')[1];
+	if (urlParams) {
+		const params = urlParams.split('/');
+		if (params.length > 0) datasetName = params[0];
+		if (params.length > 1) variables = params[1].split(',') as WxVars;
+		if (params.length > 2) time = params[2];
+		if (params.length > 3) zoom = parseFloat(params[3]);
+		if (params.length > 4) lng = parseFloat(params[4]);
+		if (params.length > 5) lat = parseFloat(params[5]);
+		if (params.length > 6) bearing = parseFloat(params[6]);
+		if (params.length > 7) pitch = parseFloat(params[7]);
+		flyTo(map, zoom, lng, lat, bearing, pitch);
+	}
 
-	const frameworkOptions = { opacity: 0.5, attribution: 'WxTiles' };
+	map.on('zoom', () => setURL(map, time, datasetName, variables));
+	map.on('drag', () => setURL(map, time, datasetName, variables));
+	map.on('rotate', () => setURL(map, time, datasetName, variables));
+	map.on('pitch', () => setURL(map, time, datasetName, variables));
 
-	let wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
-	map.addLayer(wxsource);
+	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: 'WxTiles' };
+
+	let wxsource: WxTileSource | undefined;
 
 	const legendControl = new WxLegendControl();
-	map.addControl(new (L.Control.extend(legendControl.extender()))({ position: 'topright' }));
-	legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
+	addControl(map, legendControl, 'top-right');
 
 	const apiControl = new WxAPIControl(wxapi, datasetName, variables[0]);
-	map.addControl(new (L.Control.extend(apiControl.extender()))({ position: 'topleft' }));
-	apiControl.onchange = async (datasetName: string, variable: string): Promise<void> => {
-		const variables: WxVars = [variable];
-		(variable.includes('eastward') && variables.push(variable.replace('eastward', 'northward'))) || // add northward variable for wind and current
-			(variable.includes('northward') && variables.unshift(variable.replace('northward', 'eastward'))); // add eastward variable for wind and current
-		map.removeLayer(wxsource);
-		wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
-		map.addLayer(wxsource);
-		await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+	addControl(map, apiControl, 'top-left');
 
-		timeControl.updateSource(wxsource);
-		await editor.onchange?.(wxsource.getCurrentStyleObjectCopy());
-	};
+	const timeControl = new WxTimeControl(10);
+	addControl(map, timeControl, 'top-left');
+	timeControl.onchange = (time_) => setURL(map, (time = time_), datasetName, variables);
 
-	const timeControl = new WxTimeControl(10, wxsource);
-	map.addControl(new (L.Control.extend(timeControl.extender()))({ position: 'topleft' }));
-
-	const editor = new WxStyleEditorControl();
-	map.addControl(new (L.Control.extend(editor.extender()))({ position: 'topleft' }));
-	editor.onchange = async (style) => {
+	const customStyleEditorControl = new WxStyleEditorControl();
+	addControl(map, customStyleEditorControl, 'top-left');
+	customStyleEditorControl.onchange = async (style) => {
+		if (!wxsource) return;
 		await wxsource.updateCurrentStyleObject(style);
 		const nstyle = wxsource.getCurrentStyleObjectCopy();
 		legendControl.drawLegend(nstyle);
-		editor.setStyle(nstyle);
+		customStyleEditorControl.setStyle(nstyle);
 	};
-	editor.onchange(wxsource.getCurrentStyleObjectCopy());
 
 	const infoControl = new WxInfoControl();
-	map.addControl(new (L.Control.extend(infoControl.extender()))({ position: 'bottomleft' }));
-	map.on('mousemove', (e) => infoControl.update(wxsource, map, e.latlng.wrap()));
+	addControl(map, infoControl, 'bottom-left');
+	map.on('mousemove', (e) => infoControl.update(wxsource, map, position(e)));
 
-	/*/ DEMO (leaflet): more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
-	let busy = false;
-	await wxsource.updateCurrentStyleObject({ units: 'C', levels: undefined }); // await always !!
-	const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
-	const colMap: [number, string][] = levels.map((level) => [level, '#' + Math.random().toString(16).slice(2, 8) + 'ff']);
-	map.on('mousemove', async (e) => {
-		const pos = e.latlng;
-		if (busy) return;
-		busy = true;
-		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
-		if (tileInfo) {
-			await editor.onchange?.({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
+	apiControl.onchange = async (datasetName_: string, variable: string): Promise<void> => {
+		// remove existing source and layer
+		removeLayer(map, frameworkOptions.id, wxsource);
+		//
+		wxsource = undefined;
+		datasetName = datasetName_;
+		const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
+		const meta = wxdatasetManager.meta.variablesMeta[variable];
+		variables = meta?.vector || [variable]; // check if variable is vector and use vector components if so
+		//
+		if (wxdatasetManager.meta.variablesMeta[variable]?.units === 'RGB') {
+			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variables[0], 0), wxdatasetManager.meta.maxZoom);
+			timeControl.setTimes(wxdatasetManager.meta.times);
+			legendControl.clear();
+		} else {
+			wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
+			await addLayer(map, frameworkOptions.id, 'wxtiles', wxsource);
+			await customStyleEditorControl.onchange?.(wxsource.getCurrentStyleObjectCopy());
+			legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
+			timeControl.updateSource(wxsource);
 		}
-		busy = false;
-	}); //*/
+	};
 
-	/*/ DEMO: abort
-	const abortController = new AbortController();
-	console.log('setTime(5)');
-	const prom = wxsource.setTime(5, abortController);
-	abortController.abort(); // aborts the request
-	await prom; // await always !! even if aborted
-	console.log('aborted');
-	await wxsource.setTime(5); // no abort
-	console.log('setTime(5) done'); //*/
+	await apiControl.onchange(datasetName, variables[0]); // initial load
 
-	/*/ DEMO: preload a timestep
+	// DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
+	if (wxsource) {
+		let busy = false;
+		await wxsource.updateCurrentStyleObject({ levels: undefined }); // await always !!
+		const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
+		const colMap: [number, string][] = levels.map((level) => [level, '#' + Math.random().toString(16).slice(2, 8) + 'ff']);
+		map.on('mousemove', async (e) => {
+			if (!wxsource || busy) return;
+			busy = true;
+			const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(position(e), map);
+			if (tileInfo) {
+				await customStyleEditorControl.onchange?.({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] }); // await always !!
+			}
+			busy = false;
+		});
+	} //*/
+
+	// DEMO: abort
+	if (wxsource) {
+		const abortController = new AbortController();
+		console.log('setTime(5)');
+		const prom = wxsource.setTime(5, abortController);
+		abortController.abort(); // aborts the request
+		await prom; // await always !! even if aborted
+		console.log('aborted');
+		await wxsource.setTime(5); // no abort
+		console.log('setTime(5) done'); 
+	}//*/
+
+	// DEMO: preload a timestep
 	map.once('click', async () => {
+		if (!wxsource) return;
 		console.log('no preload time=5');
 		const t = Date.now();
 		await wxsource.setTime(5); // await always !! or abort
@@ -118,10 +155,12 @@ async function start() {
 		await wxsource.preloadTime(20); // await always !! even if aborted
 		console.log('preloaded timesteps 10, 20');
 		map.once('click', async () => {
+			if (!wxsource) return;
 			const t = Date.now();
 			await wxsource.setTime(10); // await always !! or abort
 			console.log(Date.now() - t, ' step 10');
 			map.once('click', async () => {
+				if (!wxsource) return;
 				const t = Date.now();
 				await wxsource.setTime(20); // await always !! or abort
 				console.log(Date.now() - t, ' step 20');
@@ -129,49 +168,41 @@ async function start() {
 		});
 	}); //*/
 
-	/*/ DEMO: change style's units
+	// DEMO: change style's units
 	let i = 0;
 	map.on('click', async () => {
+		if (!wxsource) return;
 		const u = ['knots', 'm/s', 'km/h', 'miles/h'];
 		await wxsource.updateCurrentStyleObject({ units: u[i], levels: undefined }); // levels: undefined - to recalculate levels
 		legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
 		i = (i + 1) % u.length;
 	}); //*/
 
-	/*/ DEMO (leaflet): read lon lat data
+	// DEMO : read lon lat data
 	map.on('mousemove', (e) => {
-		const pos = e.latlng; // (leaflet)
+		if (!wxsource) return;
+		const pos = position(e); //
 		const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
 		if (tileInfo) {
-			const { min, max } = wxsource.getMetadata();
-			let content = `lnglat=(${pos.lng.toFixed(2)}, ${pos.lat.toFixed(2)})<br>
-			dataset=${wxsource.wxdatasetManager.datasetName}<br>
-			variables=${wxsource.getVariables()}<br>
-			style=${tileInfo.inStyleUnits.map((d) => d.toFixed(2))} ${tileInfo.styleUnits}<br>
-			source=${tileInfo.data.map((d) => d.toFixed(2))} ${tileInfo.dataUnits}<br>
-			min=${min.toFixed(2)} ${tileInfo.dataUnits}, max=${max.toFixed(2)} ${tileInfo.dataUnits}<br>
-			time=${wxsource.getTime()}`;
-			L.popup() // (leaflet)
-				.setLatLng(pos)
-				.setContent(content + `${pos}`)
-				.openOn(map);
+			console.log(tileInfo);
 		}
 	}); //*/
 
-	/*/ DEMO: timesteps
-	const tlength = wxsource.wxdatasetManager.getTimes().length;
+	// DEMO: timesteps
 	let t = 0;
 	const nextTimeStep = async () => {
-		await wxsource.setTime(t++ % tlength); // await always !!
+		if (!wxsource) return;
+		await wxsource.setTime(t++ % wxsource.wxdatasetManager.getTimes().length); // await always !!
 		setTimeout(nextTimeStep, 0);
 	};
 	setTimeout(nextTimeStep, 2000);
 	//*/
 
-	/*/ DEMO: Dynamic blur effect /
+	// DEMO: Dynamic blur effect /
 	let b = 0;
 	let db = 1;
 	const nextAnim = async () => {
+		if (!wxsource) return;
 		await wxsource.updateCurrentStyleObject({ blurRadius: b }); // await always !!
 
 		b += db;
@@ -181,4 +212,49 @@ async function start() {
 	setTimeout(nextAnim, 2000); //*/
 }
 
-start();
+function flyTo(map: L.Map, zoom: number, lng: number, lat: number, bearing: number, pitch: number) {
+	map.flyTo([lat, lng], zoom);
+}
+function setURL(map: L.Map, time: string, datasetName: string, variables: string[]) {
+	const center = map.getCenter();
+	location.href = `#${datasetName}/${variables.join(',')}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}`;
+}
+
+async function initFrameWork() {
+	let map: L.Map;
+	map = L.map('map', {
+		center: [-40.75, 174.5],
+		zoom: 3,
+		zoomControl: false,
+	});
+
+	L.control.zoom({ position: 'bottomright' }).addTo(map);
+	return map;
+}
+
+function addControl(map: L.Map, control: { extender: () => any }, position: string) {
+	position = position.replace('-', '');
+	map.addControl(new (L.Control.extend(control.extender()))({ position: position as any }));
+}
+
+function position(e: L.LeafletMouseEvent): L.LatLng {
+	return e.latlng.wrap(); // (mapbox)
+}
+
+function removeLayer(map: L.Map, layerId: string, layer?: L.Layer) {
+	map.eachLayer((l: any) => {
+		if (l.options.id === layerId) {
+			map.removeLayer(l);
+		}
+	});
+}
+
+async function addLayer(map: L.Map, idS: string, idL: string, layer: L.Layer) {
+	map.addLayer(layer);
+	await new Promise((done) => layer.once('load', done)); // highly recommended to await for the first load
+}
+
+function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {
+	const layer = L.tileLayer(URL, { id: idS, maxNativeZoom: maxZoom, zIndex: idL === 'baseL' ? 100 : 0 });
+	map.addLayer(layer);
+}

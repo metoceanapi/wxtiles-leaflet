@@ -118,6 +118,8 @@ export class WxTileSource extends WxImplementation implements WxLayerAPI {
 		this.layer.loadTile(coords).then((data) => {
 			tileEl.wxtile = new WxTile({ x: coords.x, y: coords.y, z: coords.z }, ctx, data);
 			done();
+		}).catch((err) => {
+			done(err);
 		});
 
 		return tileEl;
