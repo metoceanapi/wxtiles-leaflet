@@ -6,8 +6,8 @@
 	"types": "dist/es/index.d.ts",
 	"scripts": {
 		"build": "rm -rf dist/ && node build.js && tsc",
+		"buildForDocs": "node build-for-docs.js",
 		"start": "PORT=3002 node watch-public.js",
-		"copy-demo-to-docs": "rsync -av --delete demo/ docs/demo/",
 		"preversion": "npm run build",
 		"version": "changelogkeeper && git add CHANGELOG.md",
 		"npm_reinstall": "rm -rf node_modules package-lock.json && npm i",
