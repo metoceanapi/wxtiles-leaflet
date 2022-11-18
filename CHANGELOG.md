@@ -9,6 +9,13 @@ Write your changes below this section. `npm version [major|minor|patch]` will au
 
 ## [Unreleased]
 
+## [2.0.4] - 2022-11-18
+
+### add
+
+- new ver
+- see mbox version for details https://github.com/metoceanapi/wxtiles-mbox
+
 ## [1.1.2] - 2022-09-28
 
 ### fix
