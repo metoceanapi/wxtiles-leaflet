@@ -9,6 +9,7 @@ import { WxTimeControl } from '../src/controls/WxTimeControl ';
 import { WxAPIControl } from '../src/controls/WxAPIControl';
 
 start();
+// simpleDemo();
 
 const OPACITY = 1;
 
@@ -37,25 +38,17 @@ async function start() {
 	// let variables: WxVars = ['reflectivity'];
 
 	// get datasetName from URL
-	let time = '';
-	let zoom = 0;
-	let lat = 0;
-	let lng = 0;
-	let bearing = 0;
-	let pitch = 0;
 	const urlParams = window.location.toString().split('#')[1];
-	if (urlParams) {
-		const params = urlParams.split('/');
-		if (params.length > 0) datasetName = params[0];
-		if (params.length > 1) variables = params[1].split(',') as WxVars;
-		if (params.length > 2) time = params[2];
-		if (params.length > 3) zoom = parseFloat(params[3]);
-		if (params.length > 4) lng = parseFloat(params[4]);
-		if (params.length > 5) lat = parseFloat(params[5]);
-		if (params.length > 6) bearing = parseFloat(params[6]);
-		if (params.length > 7) pitch = parseFloat(params[7]);
-		flyTo(map, zoom, lng, lat, bearing, pitch);
-	}
+	const params = urlParams?.split('/');
+	datasetName = params?.[0] || datasetName;
+	if (params?.[1]) variables = params[1].split(',') as WxVars;
+	let time = params?.[2] || '';
+	const zoom = (params && parseFloat(params[3])) || 0;
+	const lng = (params && parseFloat(params[4])) || 0;
+	const lat = (params && parseFloat(params[5])) || 0;
+	const bearing = (params && parseFloat(params[6])) || 0;
+	const pitch = (params && parseFloat(params[3])) || 0;
+	flyTo(map, zoom, lng, lat, bearing, pitch);
 
 	map.on('zoom', () => setURL(map, time, datasetName, variables));
 	map.on('drag', () => setURL(map, time, datasetName, variables));
@@ -97,15 +90,14 @@ async function start() {
 		wxsource = undefined;
 		datasetName = datasetName_;
 		const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
-		const meta = wxdatasetManager.meta.variablesMeta[variable];
-		variables = meta?.vector || [variable]; // check if variable is vector and use vector components if so
-		//
-		if (wxdatasetManager.meta.variablesMeta[variable]?.units === 'RGB') {
-			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variables[0], 0), wxdatasetManager.meta.maxZoom);
-			timeControl.setTimes(wxdatasetManager.meta.times);
+		const meta = wxdatasetManager.getVariableMeta(variable);
+		variables = wxdatasetManager.checkCombineVariableIfVector(variable); // check if variable is vector and use vector components if so
+		if (meta?.units === 'RGB') {
+			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variables[0], 0), wxdatasetManager.getMaxZoom());
+			timeControl.setTimes(wxdatasetManager.getTimes());
 			legendControl.clear();
 		} else {
-			wxsource = new WxTileSource({ wxdatasetManager: await wxapi.createDatasetManager(datasetName), variables }, frameworkOptions);
+			wxsource = new WxTileSource({ wxdatasetManager, variables }, frameworkOptions);
 			await addLayer(map, frameworkOptions.id, 'wxtiles', wxsource);
 			await customStyleEditorControl.onchange?.(wxsource.getCurrentStyleObjectCopy());
 			legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
@@ -215,14 +207,14 @@ async function start() {
 function flyTo(map: L.Map, zoom: number, lng: number, lat: number, bearing: number, pitch: number) {
 	map.flyTo([lat, lng], zoom);
 }
+
 function setURL(map: L.Map, time: string, datasetName: string, variables: string[]) {
 	const center = map.getCenter();
 	location.href = `#${datasetName}/${variables.join(',')}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}`;
 }
 
 async function initFrameWork() {
-	let map: L.Map;
-	map = L.map('map', {
+	const map = L.map('map', {
 		center: [-40.75, 174.5],
 		zoom: 3,
 		zoomControl: false,
@@ -257,4 +249,40 @@ async function addLayer(map: L.Map, idS: string, idL: string, layer: L.Layer) {
 function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {
 	const layer = L.tileLayer(URL, { id: idS, maxNativeZoom: maxZoom, zIndex: idL === 'baseL' ? 100 : 0 });
 	map.addLayer(layer);
+}
+
+async function simpleDemo() {
+	const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
+
+	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+	// const headers = new Headers();
+	// headers.append('x-api-key', '--proper-key-value--'); // If needed in the future
+	const requestInit: RequestInit = {
+		/* headers */
+	}; // add more options if needed such as headers, mode, credentials, etc
+
+	// Get the API ready - should be ONE per application
+	WxTilesLogging(true); // If needed
+	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit });
+
+	const datasetName = 'gfs.global';
+	const variable = 'air.temperature.at-2m'; // Scalar example
+	// const variable = 'wind.speed.eastward.at-10m'; // Vector example
+
+	// Create a dataset manager (may be used for many layers from this dataset)
+	const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
+
+	// Usefull to automatically get the vector component variables from the dataset manager if given variable is northward or eastward
+	// if not a vector component, then just return the variable itself
+	const variables = wxdatasetManager.checkCombineVariableIfVector(variable);
+
+	// create a layer
+	const leafletOptions: L.GridLayerOptions = { opacity: 1, attribution: 'WxTiles' };
+	const wxsource = new WxTileSource({ wxdatasetManager, variables }, leafletOptions);
+
+	// add the layer to the map
+	map.addLayer(wxsource);
+
+	// await for the first load
+	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
 }
