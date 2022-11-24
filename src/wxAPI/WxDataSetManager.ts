@@ -1,6 +1,6 @@
 import { fetchJson } from '../utils/wxtools';
-import { WxDate, WxVars } from '../wxlayer/wxlayer';
-import { WxDatasetMeta, WxAPI, WxVariableMeta, WxInstances, WxAllBoundariesMeta } from './wxAPI';
+import type { WxDate, WxVars } from '../wxlayer/wxlayer';
+import type { WxDatasetMeta, WxAPI, WxVariableMeta, WxInstances, WxAllBoundariesMeta } from './wxAPI';
 
 /**
  * @class WxDataSetManager
