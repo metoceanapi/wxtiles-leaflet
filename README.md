@@ -1,357 +1,189 @@
-# Wxtiles-leaflet lib
+# wxtiles
 
-JS lib based on Leaflet https://leafletjs.com  
-Data tiles are from https://tiles.metoceanapi.com
+This is a project for weather data visualization.
+There are three main parts of the project:
 
-# demo and examples
+1. [Splitter](https://github.com/metocean/wxtile-splitter) - a service that splits the datasets into tiles (PNG) and some metadata (JSON) served by a fileserver backend aka NGINX.
+2. [WxTiles-mbox source code](https://github.com/metoceanapi/wxtiles-mbox), npm [@metoceanapi/wxtiles-mbox](https://www.npmjs.com/package/@metoceanapi/wxtiles-mbox) - a JS API providing work with metadata, dataset manager and an implementation of a Custom MapBox-gl-gs Layer for visualizing the tiles using [Mapbox-gl-gs](https://www.mapbox.com/).
+3. [WxTiles-leaflet source code](https://github.com/metoceanapi/wxtiles-leaflet), npm [@metoceanapi/wxtiles-leaflet](https://www.npmjs.com/package/@metoceanapi/wxtiles-leaflet) - a JS API providing work with metadata, dataset manager and an implementation of a Custom Leaflet Layer for visualizing the tiles using [Leaflet](https://leafletjs.com/).
 
-To see a demo running:
+## DOCS
+
+- Mapbox-gl: https://metoceanapi.github.io/wxtiles-mbox/docs/
+- Leaflet: https://metoceanapi.github.io/wxtiles-leaflet/docs/
+
+## API
+
+APIs for Leaflet and Mapbox-gl-gs are similar, but they have different implementations of the Custom Source/Layer.
+
+## Examples
+
+### MapBox-gl-js
+
+```ts
+import 'mapbox-gl/dist/mapbox-gl.css';
+import mapboxgl from 'mapbox-gl';
+import { WxAPI } from '@metoceanapi/wxtiles-mbox';
+
+async func(){
+	// Get the API ready - should be ONE per application
+	// requestInit is used in every request to the server. Add your keys, credentials, mode, etc.
+	const wxapi = new WxAPI({ dataServerURL: 'https://tiles.metoceanapi.com/data/',
+		requestInit: { /* headers: new Headers([['x-api-key', 'key']]), */ } });
+
+	// Create a dataset manager (may be used for many variables-layers from this dataset)
+	const wxdatasetManager = await wxapi.createDatasetManager('gfs.global');
+
+	// Automatically gets a proper set of variable(s) from the dataset and composes northward or eastward components if needed
+	const variables = wxdatasetManager.checkCombineVariableIfVector('air.temperature.at-2m'); // 'wind.speed.eastward.at-10m' - Vector example
+
+	// create a Mapbox layer source
+	const mboxSourceOptions = { id: 'wxsource', attribution: 'WxTiles' };
+	const wxsource = new WxTileSource({ wxdatasetManager, variables }, mboxSourceOptions);
+
+	// add the layer to the map
+    const map = new mapboxgl.Map({ container: 'map', accessToken:'token', style: { version: 8, name: 'Empty', sources: {}, layers: [] } });
+    await map.once('load');
+	map.addSource(wxsource.id, wxsource);
+	map.addLayer({ id: 'wxlayer', type: 'raster', source: wxsource.id, paint: { 'raster-fade-duration': 0 /*NEDDED for animation*/ } });
+}()
 
 ```
-npm install
-npm run start
+
+### Leaflet
+
+```ts
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+import { WxAPI } from '@metoceanapi/wxtiles-leaflet';
+
+async func(){
+	// Get the API ready - should be ONE per application
+	// requestInit is used in every request to the server. Add your keys, credentials, mode, etc.
+	const wxapi = new WxAPI({ dataServerURL: 'https://tiles.metoceanapi.com/data/',
+		requestInit: { /* headers: new Headers([['x-api-key', 'key']]), */ } });
+
+	// Create a dataset manager (may be used for many variables-layers from this dataset)
+	const wxdatasetManager = await wxapi.createDatasetManager('gfs.global');
+
+	// Automatically gets a proper set of variable(s) from the dataset and composes northward or eastward components if needed
+	const variables = wxdatasetManager.checkCombineVariableIfVector('air.temperature.at-2m'); // 'wind.speed.eastward.at-10m' - Vector example
+
+	// create a layer
+	const leafletOptions: L.GridLayerOptions = { opacity: 1, attribution: 'WxTiles' };
+	const wxsource = new WxTileSource({ wxdatasetManager, variables }, leafletOptions);
+
+	// add the layer to the map
+	const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
+	map.addLayer(wxsource);
+	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+}()
 ```
 
-Demo code is found in
+### Change the time step
 
-```
-public/index.html
-public/index.js
-```
-
-Folder Examples contains standalone workable html examples.
-
-# API. Functions
-
-## WxTileLibSetup({ colorStyles, units, colorSchemes } = {})
-
-Wxtile lib must be initialized before use.
-
-## WxGetColorStyles()
-
-Get all style objects. See 'styles'
-
-## WxTileLayer(settings)
-
-See Layer.initialize
-
-## WxTileLogging(bool:on = false)
-
-Print vast logs to consol.
-
-## WxGetInternalLeafletCopy()
-
-Get the Leaflet library bundled with Wxtiles.
-
-## WxTileWatermark(params)
-
-params - Leaflet control's parameters
-
-# API. Layer Objects
-
-## constructor: initialize({ dataSource, options = {}, lazy = true })
-
-```js
-dataSource = {
-			serverURI: string, // server to fetch data from
-			ext: string, // png / webp (default) - wxtilesplitter output format
-			dataset: string, // dataset of the dataset
-			variables: [string, string] // variable(s) to be used for the layer rendering
-			name: string, // attribute of the dataSource to be used externally
-			styleName: string, // The name of the style (from styles.json) to apply for the layer
-		}
-// Lazy setup
-// 'true': perform setup and data loading on 'addTo(map)'.
-// 'false': start loading immediately, but loading is not finished when layer is created.
-// the signal 'setupcomplete' is fired when loading is finished.
-// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
-lazy: bool
-
-options = { // Lealet's options for the layer
-    opacity: 1,
-}
+```ts
+await wxsource.setTimeStep(1); // 1 - index of the time step in the dataset
 ```
 
-## getSetupCompletePromise() : Promise<void>
+or
 
-As setup process is async, this function returns the promise which is resolved upon setup complete.
-
-## once('setupcomplete', func(){})
-
-It is a Leaflet's feature.
-_func_ - a callback called upon setup complete.
-
-## createTile(coords: obj, done: function)
-
-Leaflet calls this function to create tiles.
-
-## getTile(latlng) : obj
-
-```js
-latlng = { lat: num, lon: num };
-obj = { tile: obj, data: num, raw: uint16, rgba: Uint32, hexColor: string, inStyleUnits: num, tilePoint: { x, y }, units: string };
+```ts
+await wxsource.setTimeStep('2020-01-01T00:00:00Z'); // '2020-01-01T00:00:00Z' - time step in the dataset
 ```
 
-**tile** - internal wxtile-js lib object.  
-**raw** - raw representation of data at latlng  
-**data** - data at latlng  
-**inStyleUnits** - data at latlng converted into style units.  
-**rgba** - uint32 representation of the color at latlng  
-**hexColor** - web format of the color reprensentation at latlng  
-**tilePoint** - {x, y} (0-256) projection of the latlng on the tile.  
-**units** - style units
+or
 
-## setStyle(name: string)
-
-**name** - a name of a style object in _styles.json_. (Warning! it is not an internal 'name' _in_ the style)
-
-## getStyle() : string
-
-Get the 'name' of the layer's style object used for rendering.
-
-## getStyleName() : string
-
-Get an internal 'name' of the layer's style.
-
-## setTime(unixTime: number) : Promise<void>
-
-_unixTime_ - milliseconds since Jan 1, 1970, 00:00:00.000 GMT
-_Promise_ is resolved when new data is loaded and rendered. _Undefined_ if error ocured.
-
-## getTime() : string
-
-Get current layer's _time step_ used for rendering.
-
-## getTimes()
-
-Get all layer's _time steps_.
-
-## checkDataChanged() : Promise<bool>
-
-resolved as _true_ if there is a new instance of data.
-
-## reloadData() : Promise<void>
-
-Forces layer to reload data
-
-## getLegendData(legendSize: number): obj
-
-Returns style's metadata usefull for legend rendering
-_legendSize_ - width of a legend.
-
-```js
-obj = { size: number, showBelowMin: bool, showAboveMax: bool, units: string, colors: Uint32Array(size), ticks: [tickobj] };
-tickobj = { data: number, dataString: string, color: string, pos: number };
+```ts
+await wxsource.setTimeStep(2345323454); //  time in seconds since 1970-01-01T00:00:00Z
 ```
 
-_size_ = legendSize
-_showBelowMin_ - usefull to show somehow on a legend that data is shown (or not) below the legend's minimum
-_showAboveMax_ - usefull to show somehow on a legend that data is shown (or not) above the legend's maximum
-_units_ - style's units
-_colors_ - array of RGBA.
+or
 
-_tick_ - metadata for ticks on the legend
-_data_ - data in style's units
-_dataString_ - string representation of a data (formated).
-_color_ - web color at the tick
-_pos_ - legend's X coord for the tick (0, legendSize)
-
-## setCoarseLevel(l = 2)
-
-Prepares layer to be time-animated. Reduces level of detalization, so dramaticaly reduces downloaded data during animation.
-
-## unsetCoarseLevel()
-
-Restores level of detalization to the level's maximum.
-
-# WxTile Data structure
-
-See https://github.com/metocean/wxtile-splitter
-
-## Styles, unrolling and inheritance
-
-'styles.json' contains a set of styles. It is processsed in order to aplly 'unrolling' and 'inheritance'
-
-'unrolling' and 'inheritance' example:
-
-```js
-{
-	"variableName": [ // style can be arrays of styles. Usefull when many styles are set for one variable.
-		{
-			"name": "super 0",
-			"....": "..."
-		},
-		{
-			"name": "super 1",
-			"....": "..."
-		},
-		{
-			"name": "super 2",
-			"parent": "variablName[1]",
-			"....": "..."
-		}
-	]
-}
+```ts
+await wxsource.setTimeStep(new Date('2020-01-01T00:00:00Z')); // Date object
 ```
 
-unrolled to
+### Update the style
 
-```json
-{
-	// NOTE: order number in array is added to the arrayed-style, so each style becomes independent
-	"variableName[0]": {
-		"name": "super 0",
-		"....": "..."
-	},
-	// So, as an example of inheritance, 'variableName[1]' could be used as a parent for variableName[2]
-	"variableName[1]": {
-		"name": "super 1",
-		"....": "..."
-	},
-	// So, as an example of inheritance, 'variableName[1]' could be used as a parent for variableName[2]
-	"variableName[2]": {
-		"name": "super 2",
-		"parent": "variableName[1]",
-		"....": "..."
+```ts
+await wxsource.updateCurrentStyleObject({ units: 'm/s', levels: undefined }); // levels: undefined - to recalculate levels
+```
+
+### Preload the time steps
+
+```ts
+// load to the cache the time steps 10 but not render it
+const prom = wxsource.preloadTime(10);
+// do stuff asyncronously
+// ...
+await prom; // wait for the time step to finish loading
+// now set the time step to 10
+await wxsource.setTime(10); // will be rendered from the cache
+```
+
+### Abort loading
+
+```ts
+const abortController = new AbortController();
+console.log('setTime(5)');
+const prom = wxsource.setTime(5, abortController);
+abortController.abort(); // aborts the request
+await prom; // await always !! even if aborted
+console.log('aborted');
+```
+
+### Get the current time step
+
+```ts
+const timeStep = wxsource.getTime();
+```
+
+### read lon lat data
+
+```ts
+map.on('mousemove', (e) => {
+	if (!wxsource) return;
+	const pos = position(e); //
+	const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(pos.wrap(), map);
+	if (tileInfo) {
+		console.log(tileInfo);
 	}
-}
+});
 ```
 
-## fields of a style
+### animated blur effect
 
-```js
-{
-    "parent": "base", /* parent the style. Usefull within the inharitance system.
-                            If presented in 'styles.json', to fullfill this style the parentstyle is ammended with fields of this style.
-                            multi-inheritance is acceptable, so parent style can have its own parent etc
-                            if no parent specified parent="base" is used. "base" style must be in 'styles.json'
-                            NOTE: useless for hot 'custom' style - dirty hack acccepted by wxtile-js lib.*/
-	"name": "Style name to be showed on legend",
-	"fill": "gradient(default)/solid/none",
-	"isolineColor": "inverted(default)/fill/none",
-	"isolineText": true,  // make text on isolines visible (default: true)
-	"showBelowMin": true, // make invisible(if false) data below minimud level data.
-	"showAboveMax": true, // make invisible(if false) data above minimud level data.
-	"blurRadius": 0, // apply BoxBlur to fetched data
-	"addDegrees": 0, // rotation of arrows. Usefull for currents and winds in some cases with data units 'degree' to coorect rotation of original data if needed.
-	"vectorColor": "inverted/fill/none(default)/#xxxxxxxx", /* color of vectors:
-                                    "none" - (default) don't render vectors,
-                                    "inverted" - inverted color for current data,
-                                    "fill" - color for current data,
-                                    "#ffffffff" - const color (web format) for all vectors.*/
-	"vectorType": "arrows(default)/barbs", /*the name of the font used for vector rendering.
-                                    "none" - (default) don't render vectors,
-                                    "vector" - arrows
-                                    "barbs" - barbs*/
-	"streamLineColor": "none/#888", // in web color scheme "#rgb" or "#rrggbb" "#rrggbbaa". "none" - no particle animation
-	"streamLineSpeedFactor": 3, // factor to make stream lines longer (particles faster).
-    "streamLineStatic": false, // don't animate streamlines, draw a 'curve' instead.
-	"levels": [0, 0.25, 0.75, 1, 1.5, 2], /* levels of data for legend and isolines.
-                                    if "levels" is null, then 10 levels in [min, max] are autocreated.
-                                    Ignored if 'colorMap' is not null*/
-	"colorScheme": "rainbow", /*predefined colorsceme in 'colorschemes.json' (ignored if 'colors' or 'colorMap' is not null):
-                                    "rainbow" (default), used if there is no colorscheme in a style)
-                                    "rainbow2"
-                                    "bluebird"
-                                    "bw"
-                                    "wb"
-                                    "redish"
-                                    "greenish"
-                                    "blueish"*/
-	"colors": ["#5E6472FF", "#AED9E0FF", "#B3E6E3FF", "#B8F2E6FF", "#FAF3DDFF", "#FFA69EFF"], // legend's linear colorscheme. Ignored if 'colorMap' is not null)
-	"colorMap": [ // array of levels and corresponding colors. Non-linear representation of a colorscheme
-		[0, "#323200ff"], // level value (in style's units), color
-		[16, "#ffff00ff"],[20, "#ffff00ff"],[20, "#0032a0ff"],[30, "#0050ffff"],[30, "#006496ff"],[40, "#00ffffff"],...
-	],
-	"units": "speedOfLight", // representation of the layer's data (data is converted if necessary)
-	"extraUnits": {"speedOfLight": ["m/s", 299792458, 0]} // append default unit converter system with new units: "speedOfLight" = "m/s" * 299792458 + 0;
-}
+```ts
+let b = 0;
+let db = 1;
+const nextAnim = async () => {
+	if (!wxsource) return;
+	await wxsource.updateCurrentStyleObject({ blurRadius: b }); // await always !!
+
+	b += db;
+	if (b > 16 || b < 0) db = -db;
+	setTimeout(nextAnim, 1);
+};
+setTimeout(nextAnim, 2000);
 ```
 
-## Colors defined as a string (web format)
+### more interactive - additional level and a bit of the red transparentness around the level made from current mouse position
 
-The basic information could be found here: https://en.wikipedia.org/wiki/Web_colors#Hex_triplet
-In addition to 'standard' triplets, in 'wxtile-js' lib four bytes could be used to represent RGBA (transparancy).
-Color defenition is "case insensitive".
-
-#ffd700 = #FFD700 = #FFD700FF (opaque, "case insensitive")
-#FFD7007F (semi transparent)
-
-#f6e = #ff66EE = #ff66eeff (opaque)
-#0aF = #00AAff = #00AAFFFF (opaque)
-
-# Color schemes
-
-colorschemes.json
-
-```js
-{
-    "rainbow": [     // Name of a colorscheme
-        "#ff0000ff", // string representation of RGBA color,
-        "#ffff00ff",
-        "#00ff00ff",
-        "#00ffffff",
-        "#0000ffff",
-        "#ff00ffff"
-    ],
-    ...
-}
+```ts
+await wxsource.updateCurrentStyleObject({ levels: undefined }); // reset levels if existed in the style
+const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
+// generate a new color map from the levels
+const colMap: [number, string][] = levels.map((level) => [level, '#' + Math.random().toString(16).slice(2, 8) + 'ff']);
+let busy = false;
+map.on('mousemove', async (e) => {
+	if (!wxsource || busy) return;
+	busy = true;
+	const tileInfo: WxTileInfo | undefined = wxsource.getLayerInfoAtLatLon(position(e), map);
+	if (tileInfo) {
+		await wxsource.updateCurrentStyleObject({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] });
+		onsole.log(tileInfo);
+	}
+	busy = false;
+});
 ```
-
-# Units convertion
-
-Units converter works ONLY with units from this file.
-It considers "m/s" and "m s\*\*-1" as different units.
-NOTE!!! Units in the first column are taken from dataset data files.
-NOTE!!! Units int the `uconv.json` are case-sensitive.
-
-## Example:
-
-Base units for "knot" is "m/s",
-Base units for "km/h" is "m/s", so "knot" and "km/h" are convertible.
-Convertion is always two-staged, forward - units-1 to its base units, backward - from base units to units-2.
-to convert 5 "knot" to "km/h":
-
-```
-    "knot":             ["m/s", 0.514444],
-    "km/h":             ["m/s", 0.27777777777],
-
-```
-
-1. 5 knot = 5 \* 0.514444 = 2,57222 m/s -- forward
-2. 2,57222 / 0.277777777 = 9.26 km/h -- backward
-
-## 'uconv.json' example
-
-```json
-{
-	"K": ["K", 1],
-	"F": ["K", 0.5555555555, 255.372222222],
-	"C": ["K", 1, 273.15],
-	"degC": ["K", 1, 273.15],
-	"kg/m^2/s": ["kg/m^2/s", 1],
-	"Kg m**-2 s**-1": ["kg/m^2/s", 1],
-	"W/m^2": ["W/m^2", 1],
-	"W m**2": ["W/m^2", 1],
-	"m/s": ["m/s", 1],
-	"m s**-1": ["m/s", 1],
-	"knot": ["m/s", 0.514444],
-	"km/h": ["m/s", 0.27777777777],
-	"s": ["s", 1],
-	"sec": ["s", 1],
-	"h": ["s", 3600],
-	"min": ["s", 60],
-	"m": ["m", 1],
-	"cm": ["m", 0.01],
-	"inch": ["m", 0.0254]
-}
-```
-
-# ToDos:
-
-1. animated `degrees` like wave direction (minor)
-
-# browsers compatibility
-
-See https://leafletjs.com/ section 'Browser Support'
-In addition, if 'webp' as compression format is used see compatibility: https://caniuse.com/webp

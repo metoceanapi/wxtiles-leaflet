@@ -12,32 +12,53 @@ import {
 	WXLOG,
 } from '../utils/wxtools';
 import { type WxBoundaryMeta } from '../wxAPI/wxAPI';
-import { applyMask, makeBox, splitCoords, subData, subDataDegree } from './loadertools';
+import { applyMask, makeBox, splitCoords, subData, subDataDegree, subMask } from './loadertools';
 import { WxRequestInit, WxURIs, type WxLayer } from './wxlayer';
 
-interface SLinePoint {
+/** Point on pixel grid */
+export interface SLinePoint {
 	x: number;
 	y: number;
 }
 
+/** Line on pixel grid */
 export type SLine = SLinePoint[];
 
+/** Data of a single tile */
 export interface WxData {
+	/**
+	 *  data of the tile one for scalar data, three for vector data (two vars+vector lengths)*/
 	data: DataPictures;
+
+	/** streamlines */
 	slines: SLine[];
 }
 
+/**
+ * A class to load and preprocess data from PNG tiles. Used intenally by WxLayer.
+ * Do not use directly.
+ */
 export class Loader {
+	/** refference to the Layer {@link WxLayer} in which this loader is used */
 	protected readonly layer: WxLayer;
+
+	/** function to load, decode and cache data from URL */
 	protected loadDataFunc: UriLoaderPromiseFunc<DataIntegral> = /*loadDataIntegral; //*/ cacheUriPromise(loadDataIntegral);
 
+	/** Do not use constructor directly */
 	constructor(layer: WxLayer) {
 		this.layer = layer;
 	}
 
+	/**
+	 * Load and preprocess data for a single tile
+	 * @param tile - tile coordinates
+	 * @param requestInit - requestInit for fetch
+	 * @returns {Promise<WxData | null> } data of the tile
+	 * */
 	async load(tile: XYZ, requestInit?: WxRequestInit): Promise<WxData | null> {
 		const preloaded = await this.cacheLoad(tile, this.layer.tilesURIs, requestInit);
-		if (!preloaded) return null;
+		if (!preloaded) return null; // tile is cut by boundaries or mask QTree
 		const { rawdata, subCoords, tileType } = preloaded;
 		const { units } = this.layer.currentMeta;
 		const interpolator = units === 'degree' ? subDataDegree : subData;
@@ -67,10 +88,12 @@ export class Loader {
 		// we don't need to process data, as it's for cache preloading only
 	}
 
+	/** Clear cache */
 	clearCache(): void {
 		this.loadDataFunc = cacheUriPromise(loadDataIntegral);
 	}
 
+	/** @ignore */
 	protected async _applyMask(data: DataPictures, tile: XYZ, tileType: TileType, needCopy: boolean): Promise<void> {
 		const { style } = this.layer;
 		if ((style.mask === 'land' || style.mask === 'sea') && tileType === TileType.Mixed) {
@@ -83,17 +106,20 @@ export class Loader {
 
 			let maskImage: ImageData;
 			try {
-				maskImage = await this.layer.wxdatasetManager.wxapi.loadMaskFunc(tile);
+				const { upCoords, subCoords } = splitCoords(tile, this.layer.wxdatasetManager.wxapi.maskDepth);
+				maskImage = await this.layer.wxdatasetManager.wxapi.loadMaskFunc(upCoords);
+				maskImage = subMask(maskImage, subCoords); // preprocess all loaded data
 			} catch (e) {
-				// style.mask = undefined;
-				WXLOG("Can't load Mask. Masking is Turned OFF");
+				style.mask = undefined;
+				WXLOG("Can't load Mask. Masking is disabled");
 				return;
 			}
 
-			applyMask(data[0], maskImage, style.mask);
+			applyMask(data[0], maskImage, this.layer.wxdatasetManager.wxapi.maskChannel, style.mask);
 		}
 	}
 
+	/** @ignore */
 	protected _vectorMagnitudesPrepare(data: DataPictures): void {
 		if (data.length === 1) return; // no need to process
 		data.unshift({ raw: new Uint16Array(258 * 258), dmin: 0, dmax: 0, dmul: 0 });
@@ -111,6 +137,7 @@ export class Loader {
 		}
 	}
 
+	/** @ignore */
 	protected _checkTypeAndMask(coords: XYZ): TileType | undefined {
 		const { mask } = this.layer.style;
 		// Check by QTree
@@ -125,6 +152,7 @@ export class Loader {
 		return tileType;
 	}
 
+	/** @ignore */
 	protected _checkInsideBoundaries(coords: XYZ): boolean {
 		const boundaries = this.layer.wxdatasetManager.getBoundaries();
 		if (boundaries?.boundaries180) {
@@ -138,6 +166,7 @@ export class Loader {
 		return true;
 	}
 
+	/** @ignore */
 	protected _createStreamLines(data: DataPictures): SLine[] {
 		if (data.length !== 3) return [];
 		const { style } = this.layer;

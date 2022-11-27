@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo } from '../src/index';
+import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions } from '../src/index';
 import { WxLegendControl } from '../src/controls/WxLegendControl';
 import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
 import { WxInfoControl } from '../src/controls/WxInfoControl';
@@ -282,7 +282,7 @@ async function simpleDemo() {
 	const variables = wxdatasetManager.checkCombineVariableIfVector(variable);
 
 	// create a layer
-	const leafletOptions: L.GridLayerOptions = { opacity: 1, attribution: 'WxTiles' };
+	const leafletOptions: FrameworkOptions = { opacity: 1, attribution: 'WxTiles' };
 	const wxsource = new WxTileSource({ wxdatasetManager, variables }, leafletOptions);
 
 	// add the layer to the map

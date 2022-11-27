@@ -5,9 +5,10 @@
 	"main": "dist/es/index.js",
 	"types": "dist/es/index.d.ts",
 	"scripts": {
-		"build": "rm -rf dist/ && node build.js && tsc",
-		"buildForDocs": "node build-for-docs.js",
+		"build_DEMO_Docs": "npm run build && npm run buildDOCS && node build-for-docs.js",
 		"start": "PORT=3002 node watch-public.js",
+		"build": "rm -rf dist/ && node build.js && tsc",
+		"buildDOCS": "./node_modules/.bin/typedoc --out docs/docs --excludeExternals src",
 		"preversion": "npm run build",
 		"version": "changelogkeeper && git add CHANGELOG.md",
 		"npm_reinstall": "rm -rf node_modules package-lock.json && npm i",
@@ -26,12 +27,11 @@
 	"devDependencies": {
 		"@types/leaflet": "^1.9.0",
 		"changelogkeeper": "^1.2.0",
-		"esbuild": "^0.14.54",
+		"esbuild": "^0.15.15",
 		"esbuild-plugin-external-global": "^1.0.1",
 		"express": "^4.18.2",
-		"typescript": "^4.8.4"
-	},
-	"peerDependencies": {
-		"leaflet": "^1.9.2"
+		"leaflet": "^1.9.3",
+		"typedoc": "^0.23.21",
+		"typescript": "^4.9.3"
 	}
 }
