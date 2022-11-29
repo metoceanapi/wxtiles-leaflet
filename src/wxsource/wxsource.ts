@@ -156,7 +156,8 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * @internal
 	 * @description Used by framework. Cleans up resources used by the source.
 	 */
-	onRemove() {
+	onRemove(map: L.Map): this {
+		super.onRemove(map);
 		WXLOG(`WxTileSource onRemove (${this.layer.wxdatasetManager.datasetName})`);
 		this.animation = false;
 		this.clearCache();
