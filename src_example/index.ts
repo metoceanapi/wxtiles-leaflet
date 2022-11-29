@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet'; // goes first always!
 
-import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions } from '../src/index';
+import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions, WxGetColorStyles } from '../src/index';
 import { WxLegendControl } from '../src/controls/WxLegendControl';
 import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
 import { WxInfoControl } from '../src/controls/WxInfoControl';
@@ -28,9 +28,22 @@ async function start() {
 	const wxapi = new WxAPI({
 		dataServerURL,
 		maskURL: dataServerURL + 'masks/{z}/{x}/{y}.png',
+		maskChannel: 'R',
+		maskDepth: 9, // currently only max 9 is supported
 		qtreeURL: dataServerURL + 'masks/9+1.seamask.qtree',
 		requestInit: { headers: myHeaders },
 	});
+
+	// const bs = WxGetColorStyles()['base'];
+	// let ns: WxColorStyleWeak = {};
+	// let nstyle = { mask: 'none' };
+	// for (const i in nstyle) {
+	// 	if (nstyle[i] !== bs[i]) ns[i] = nstyle[i];
+	// }
+
+	// const ds = JSON.stringify(ns).replace(/"/g, "'");
+	// ns = JSON.parse(ds.replace(/'/g, '"'));
+	// console.log(ns);
 
 	let datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
 	let variables: WxVars = ['air.temperature.at-2m'];
@@ -43,7 +56,7 @@ async function start() {
 	// let variables: WxVars = ['reflectivity'];
 
 	// get datasetName from URL
-	const urlParams = window.location.toString().split('#')[1];
+	const urlParams = window.location.toString().split('##')[1];
 	const params = urlParams?.split('/');
 	datasetName = params?.[0] || datasetName;
 	if (params?.[1]) variables = params[1].split(',') as WxVars;
@@ -52,13 +65,26 @@ async function start() {
 	const lng = (params && parseFloat(params[4])) || 0;
 	const lat = (params && parseFloat(params[5])) || 0;
 	const bearing = (params && parseFloat(params[6])) || 0;
-	const pitch = (params && parseFloat(params[3])) || 0;
+	const pitch = (params && parseFloat(params[7])) || 0;
+	const str = params?.[8] && params[8];
+	let wxstyle = {};
+	try {
+		// apply style from URL
+		wxstyle = str && { ...{ levels: undefined }, ...JSON.parse(decodeURI(str)) }; // reset levels if change units
+		// await customStyleEditorControl.onchange?.(style); // apply style and refresh legend
+		// wxsource?.updateCurrentStyleObject(style);
+	} catch (e) {
+		/* ignore errors silently */
+		console.log(e);
+	}
+
 	flyTo(map, zoom, lng, lat, bearing, pitch);
 
-	map.on('zoom', () => setURL(map, time, datasetName, variables));
-	map.on('drag', () => setURL(map, time, datasetName, variables));
-	map.on('rotate', () => setURL(map, time, datasetName, variables));
-	map.on('pitch', () => setURL(map, time, datasetName, variables));
+	const sth = { style: {} };
+	map.on('zoom', () => setURL(map, time, datasetName, variables, sth.style));
+	map.on('drag', () => setURL(map, time, datasetName, variables, sth.style));
+	map.on('rotate', () => setURL(map, time, datasetName, variables, sth.style));
+	map.on('pitch', () => setURL(map, time, datasetName, variables, sth.style));
 
 	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: 'WxTiles' };
 
@@ -70,9 +96,9 @@ async function start() {
 	const apiControl = new WxAPIControl(wxapi, datasetName, variables[0]);
 	addControl(map, apiControl, 'top-left');
 
-	const timeControl = new WxTimeControl(10);
+	const timeControl = new WxTimeControl(50);
 	addControl(map, timeControl, 'top-left');
-	timeControl.onchange = (time_) => setURL(map, (time = time_), datasetName, variables);
+	timeControl.onchange = (time_) => setURL(map, (time = time_), datasetName, variables, sth.style);
 
 	const customStyleEditorControl = new WxStyleEditorControl();
 	addControl(map, customStyleEditorControl, 'top-left');
@@ -81,7 +107,11 @@ async function start() {
 		await wxsource.updateCurrentStyleObject(style);
 		const nstyle = wxsource.getCurrentStyleObjectCopy();
 		legendControl.drawLegend(nstyle);
+		nstyle.levels = style?.levels; // keep levels empty if they are not defined
+		nstyle.colors = style?.colors; // keep colors empty if they are not defined
 		customStyleEditorControl.setStyle(nstyle);
+		sth.style = nstyle;
+		setURL(map, time, datasetName, variables, sth.style);
 	};
 
 	const infoControl = new WxInfoControl();
@@ -102,17 +132,20 @@ async function start() {
 			timeControl.setTimes(wxdatasetManager.getTimes());
 			legendControl.clear();
 		} else {
-			wxsource = new WxTileSource({ wxdatasetManager, variables }, frameworkOptions);
+			wxsource = new WxTileSource({ wxdatasetManager, variables, wxstyle }, frameworkOptions);
 			await addLayer(map, frameworkOptions.id, 'wxtiles', wxsource);
-			await customStyleEditorControl.onchange?.(wxsource.getCurrentStyleObjectCopy());
-			legendControl.drawLegend(wxsource.getCurrentStyleObjectCopy());
+			const styleCopy = wxsource.getCurrentStyleObjectCopy();
+			legendControl.drawLegend(styleCopy); // first draw legend with current style
 			timeControl.updateSource(wxsource);
+			styleCopy.levels = undefined; // no need to show defaults it in the editor and URL
+			styleCopy.colors = undefined; // no need to show defaults it in the editor and URL
+			await customStyleEditorControl.onchange?.(styleCopy);
 		}
 	};
 
 	await apiControl.onchange(datasetName, variables[0]); // initial load
 
-	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position6
+	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position
 	if (wxsource) {
 		let busy = false;
 		await wxsource.updateCurrentStyleObject({ levels: undefined }); // await always !!
@@ -196,26 +229,29 @@ async function start() {
 	//*/
 
 	/*/ DEMO: Dynamic blur effect /
-	let b = 0;
-	let db = 1;
-	const nextAnim = async () => {
-		if (!wxsource) return;
-		await wxsource.updateCurrentStyleObject({ blurRadius: b }); // await always !!
-
-		b += db;
-		if (b > 16 || b < 0) db = -db;
-		setTimeout(nextAnim, 1);
-	};
-	setTimeout(nextAnim, 2000); //*/
+	wxsource &&
+		(async function step(n: number = 0) {
+			await wxsource.updateCurrentStyleObject({ isolineText: false, blurRadius: ~~(10 * Math.sin(n / 500) + 10) }); // await always !!
+			requestAnimationFrame(step);
+		})();
+		//*/
 }
 
 function flyTo(map: L.Map, zoom: number, lng: number, lat: number, bearing: number, pitch: number) {
 	map.flyTo([lat, lng], zoom);
 }
 
-function setURL(map: L.Map, time: string, datasetName: string, variables: string[]) {
-	const center = map.getCenter();
-	location.href = `#${datasetName}/${variables.join(',')}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}`;
+function setURL(map: L.Map, time: string, datasetName: string, variables: string[], style: any) {
+	const base = WxGetColorStyles()['base'];
+	for (const i in style) style[i] === base[i] && delete style[i]; // remove default values
+
+	const center = map.getCenter().wrap();
+	const href =
+		`##${datasetName}/${variables.join(',')}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}/0/0` +
+		(style ? '/' + JSON.stringify(style) : '');
+
+	history.replaceState(null, '', href);
+	// location.href = `#${datasetName}/${variables.join(',')}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}`;
 }
 
 async function initFrameWork() {
