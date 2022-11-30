@@ -11,8 +11,8 @@
 		<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
 
 		<!-- WxTile lib goes here -->
-		<script src="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.6/dist/web/index.js"></script>
-		<link rel="stylesheet" href="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.6/dist/web/index.css" />
+		<script src="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.7/dist/web/index.js"></script>
+		<link rel="stylesheet" href="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.7/dist/web/index.css" />
 	</head>
 
 	<body style="margin: 0">
@@ -22,11 +22,13 @@
 			('use strict');
 			simpleDemo();
 			async function simpleDemo() {
-				const { WxTilesLogging, WxAPI, WxTileSource } = window.wxtilesleaflet;
+				const { WxTilesLogging, WxAPI } = window.wxtilesleaflet;
 
 				const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
 
 				const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+				// const headers = new Headers();
+				// headers.append('x-api-key', '--proper-key-value--'); // If needed in the future
 				const requestInit = {
 					/* headers */
 				}; // add more options if needed such as headers, mode, credentials, etc
@@ -42,13 +44,9 @@
 				// Create a dataset manager (may be used for many layers from this dataset)
 				const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
-				// Usefull to automatically get the vector component variables from the dataset manager if given variable is northward or eastward
-				// if not a vector component, then just return the variable itself
-				const variables = wxdatasetManager.checkCombineVariableIfVector(variable);
-
 				// create a layer
 				const leafletOptions = { id: 'wxsource', opacity: 1, attribution: 'WxTiles' };
-				const wxsource = new WxTileSource({ wxdatasetManager, variables }, leafletOptions);
+				const wxsource = wxdatasetManager.createSourceLayer({ variable }, leafletOptions);
 
 				// add the layer to the map
 				map.addLayer(wxsource);
