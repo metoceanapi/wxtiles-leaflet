@@ -10,6 +10,7 @@ import { WxAPIControl } from '../src/controls/WxAPIControl';
 
 start();
 // simpleDemo();
+// twoLayersDemo();
 
 const OPACITY = 1;
 
@@ -315,4 +316,35 @@ async function simpleDemo() {
 
 	// await for the first load
 	await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+}
+
+async function twoLayersDemo() {
+	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+	const requestInit: RequestInit = {
+		//  headers: new Headers([['x-api-key', '--proper-key-value--']]),
+	}; // add more options if needed such as headers, mode, credentials, etc
+
+	// Get the API ready - should be ONE per application
+	WxTilesLogging(true); // If needed
+	const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit });
+
+	// Create a dataset manager (may be used for many layers from this dataset)
+	const wxdatasetManager = await wxapi.createDatasetManager('gfs.global');
+
+	// create a layer
+	const leafletOptions = { id: 'wxsource', attribution: 'WxTiles' };
+	const wxsource = wxdatasetManager.createSourceLayer({ variable: 'air.temperature.at-2m' }, leafletOptions);
+
+	// create a layer
+	const leafletOptions1 = { id: 'wxsource1', opacity: 0.5 };
+	const wxsource1 = wxdatasetManager.createSourceLayer({ variable: 'air.visibility' }, leafletOptions1);
+
+	// MAP
+	const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
+	// add leaflet layerGroup to map
+	const group = L.layerGroup([wxsource, wxsource1]).addTo(map);
+	// create control
+	const control = L.control.layers(undefined, { wxsource, wxsource1 }).addTo(map);
+	// add the group to the control layer
+	control.addOverlay(group, 'wxsources group');
 }
