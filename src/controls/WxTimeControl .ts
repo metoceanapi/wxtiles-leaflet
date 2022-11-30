@@ -80,13 +80,14 @@ export class WxTimeControl {
 		this.onchange(this.timesEl.value);
 	}
 
-	updateSource(wxsource: WxTileSource) {
+	updateSource(wxsource?: WxTileSource) {
 		this.button.innerHTML = 'Start';
 		this.wxsource = wxsource;
 		this.timesEl.options.length = 0;
 		const times = this.wxsource?.wxdatasetManager.getTimes() || [];
 		this.setTimes(times);
-		this.timesEl.value = this.wxsource.getTime();
+		this.timesEl.value = this.wxsource?.getTime() || '';
+		this.onchange(this.timesEl.value);
 	}
 
 	onAdd(/* map */) {

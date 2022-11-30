@@ -31,18 +31,18 @@ export type {
 	WxAllBoundariesMeta,
 } from './wxAPI/wxAPI';
 
-export { WxDataSetManager, type WxDataSetManagerOptions } from './wxAPI/WxDataSetManager';
+export { WxDataSetManager, type WxDataSetManagerOptions, type WxSourceLayerOptions } from './wxAPI/WxDataSetManager';
 
 export { WxTileSource } from './wxsource/wxsource';
 
-export { type FrameworkOptions, FrameworkParentClass } from './wxsource/wxsourcetypes';
+export { type FrameworkOptions,  FrameworkParentClass } from './wxsource/wxsourcetypes';
 
 export type { WxLayerOptions, WxDate, WxRequestInit, WxTileInfo, WxVars, WxLngLat, WxURIs } from './wxlayer/wxlayer';
 export { WxLayer } from './wxlayer/wxlayer';
 
 export type { WxLayerBaseAPI, WxLayerBaseImplementation, WxLayerAPI } from './wxlayer/WxImplementation';
 
-export { WxCreateLegend, type WxLegend, type WxTick } from './utils/RawCLUT';
+export { WxCreateLegend, RawCLUT, type WxLegend, type WxTick } from './utils/RawCLUT';
 
 export { WxGetColorStyles, WxGetColorSchemes, WxTilesLogging, WXLOG } from './utils/wxtools';
 export type {
@@ -65,9 +65,8 @@ export type {
 	UriLoaderPromiseFunc,
 } from './utils/wxtools';
 
-export { Painter, WxRasterData } from './wxlayer/painter';
-export { Loader, WxData, SLine, SLinePoint } from './wxlayer/loader';
+export { Painter, type WxRasterData } from './wxlayer/painter';
+export { Loader, type WxData, type SLine, type SLinePoint } from './wxlayer/loader';
 
-export { type TileType, QTree, Tree, SubTrees, SubTreesN, TreeN } from './utils/qtree';
-
-export { RawCLUT } from './utils/RawCLUT';
+export { QTree } from './utils/qtree';
+export type { TileType, Tree, SubTrees, SubTreesN, TreeN } from './utils/qtree';

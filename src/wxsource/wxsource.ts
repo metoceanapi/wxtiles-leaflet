@@ -47,7 +47,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * @param {WxLayerOptions} wxlayeroptions - The options for the {@link WxLayerBaseImplementation}.
 	 * @param {FrameworkOptions} frameworkOptions - The options for the framework.
 	 */
-	constructor(wxlayeroptions: WxLayerOptions, frameworkOptions?: FrameworkOptions) {
+	constructor(wxlayeroptions: WxLayerOptions, frameworkOptions: FrameworkOptions) {
 		super(wxlayeroptions, frameworkOptions);
 		WXLOG('WxTileSource constructor: ', wxlayeroptions);
 	} // constructor
