@@ -7,22 +7,12 @@
 		<link rel="shortcut icon" href="res/icon.png" type="image/x-icon" />
 
 		<!-- LEAFLET lib goes first -->
-		<link
-			rel="stylesheet"
-			href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
-			integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
-			crossorigin=""
-		/>
-
-		<script
-			src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
-			integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
-			crossorigin=""
-		></script>
+		<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" crossorigin="" />
+		<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
 
 		<!-- WxTile lib goes here -->
-		<script src="../dist/web/wxtile.js"></script>
-		<link rel="stylesheet" href="../dist/web/wxtile.css" />
+		<script src="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.6/dist/web/index.js"></script>
+		<link rel="stylesheet" href="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.0.6/dist/web/index.css" />
 	</head>
 
 	<body style="margin: 0">
@@ -30,80 +20,42 @@
 
 		<script>
 			('use strict');
-			const { WxTileLogging, WxTileLibSetup, WxTileWatermark, WxTileLayer, WxGetColorStyles } = window.wxtilejs;
+			simpleDemo();
+			async function simpleDemo() {
+				const { WxTilesLogging, WxAPI, WxTileSource } = window.wxtilesleaflet;
 
-			// Leaflet basic setup // set the main Leaflet's map object, compose and add base layers
-			const map = L.map('map', { center: [-37.803113, 174.878166], zoom: 5, zoomControl: false });
+				const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
 
-			WxTileLogging(true); // use wxtiles logging -> console.log
-			WxTileWatermark({ URI: 'res/wxtiles-logo.png', position: 'topleft' }).addTo(map); // set the correct URI
-			// ESSENTIAL step to get lib ready.
-			WxTileLibSetup({}); // if empty defaults are used
+				const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+				const requestInit = {
+					/* headers */
+				}; // add more options if needed such as headers, mode, credentials, etc
 
-			// SCALAR field setup
-			const layerS = WxTileLayer({
-				dataSource: {
-					serverURI: 'https://tiles.metoceanapi.com/data/', // server to fetch data from
-					ext: 'png', // png / webp (default) - wxtilesplitter output format
-					dataset: 'ecwmf.global', // dataset of the dataset
-					variables: ['air.temperature.at-2m'], // variable(s) to be used for the layer rendering
-					name: 'air.temperature.at-2m', // attribute of the dataSource to be used externally
-					styleName: 'base', // The name of the style (from styles.json) to apply for the layer
-				},
-				// Lazy setup
-				// 'true': perform setup and data loading on 'addTo(map)'.
-				// 'false': start loading immediately, but loading is not finished when layer is created.
-				// the signal 'setupcomplete' is fired when loading is finished.
-				// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
-				lazy: false,
-				options: {
-					opacity: 0.99,
-				},
-			});
-			layerS.addTo(map);
+				// Get the API ready - should be ONE per application
+				WxTilesLogging(true); // If needed
+				const wxapi = new WxAPI({ dataServerURL, maskURL: 'none', qtreeURL: 'none', requestInit });
 
-			// VECTOR field setup
-			const layerV = WxTileLayer({
-				dataSource: {
-					serverURI: 'https://tiles.metoceanapi.com/data/', // server to fetch data from
-					ext: 'png', // png / webp (default) - wxtilesplitter output format
-					dataset: 'ecwmf.global', // dataset of the dataset
-					variables: ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'], // variabls to be used for the layer rendering
-					name: 'wind speed at 10m', // attribute of the dataSource to be used externally
-					styleName: 'base', // The name of the style (from styles.json) to apply for the layer
-				},
-				// Lazy setup
-				// 'true': perform setup and data loading on 'addTo(map)'.
-				// 'false': start loading immediately, but loading is not finished when layer is created.
-				// the signal 'setupcomplete' is fired when loading is finished.
-				// useful when a big bunch of layers is used, so layers are not wasting memory and bandwidth.
-				lazy: false,
-				options: { opacity: 0.4 },
-			});
-			layerV.addTo(map);
+				const datasetName = 'gfs.global';
+				const variable = 'air.temperature.at-2m'; // Scalar example
+				// const variable = 'wind.speed.eastward.at-10m'; // Vector example
 
-			// ONCLICK
-			map.on('click', (e) => {
-				let content = '';
-				map.eachLayer((layer) => {
-					if (layer.getTile) {
-						// check if layer is a wxLayer
-						const tile = layer.getTile(e.latlng);
-						const time = layer.getTime();
-						content += tile
-							? `<p>
-								<div style="width: 18px;height: 18px;float: left;margin-right: 5px;background:${tile.hexColor}"></div>
-								${tile.tile.layer.dataSource.name} ${tile.inStyleUnits} (${time})
-							</p>`
-							: '';
-					}
-				});
+				// Create a dataset manager (may be used for many layers from this dataset)
+				const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
-				L.popup()
-					.setLatLng(e.latlng)
-					.setContent(content + `${e.latlng}`)
-					.openOn(map);
-			});
+				// Usefull to automatically get the vector component variables from the dataset manager if given variable is northward or eastward
+				// if not a vector component, then just return the variable itself
+				const variables = wxdatasetManager.checkCombineVariableIfVector(variable);
+
+				// create a layer
+				const leafletOptions = { id: 'wxsource', opacity: 1, attribution: 'WxTiles' };
+				const wxsource = new WxTileSource({ wxdatasetManager, variables }, leafletOptions);
+
+				// add the layer to the map
+				map.addLayer(wxsource);
+
+				// await for the first load
+				await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+			}
 		</script>
 	</body>
 </html>
