@@ -35,7 +35,7 @@ export { WxDataSetManager, type WxDataSetManagerOptions, type WxSourceLayerOptio
 
 export { WxTileSource } from './wxsource/wxsource';
 
-export { type FrameworkOptions,  FrameworkParentClass } from './wxsource/wxsourcetypes';
+export { type FrameworkOptions, FrameworkParentClass } from './wxsource/wxsourcetypes';
 
 export type { WxLayerOptions, WxDate, WxRequestInit, WxTileInfo, WxVars, WxLngLat, WxURIs } from './wxlayer/wxlayer';
 export { WxLayer } from './wxlayer/wxlayer';

@@ -1,4 +1,3 @@
-import { WxAPI } from '../wxAPI/wxAPI';
 import { fetchJson, WXLOG, XYZ } from './wxtools';
 
 /** a code for an empty node in the qtree string*/

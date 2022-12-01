@@ -5,4 +5,5 @@ src/
 *.json
 
 build.js
+build-for-docs.js
 watch-public.js
