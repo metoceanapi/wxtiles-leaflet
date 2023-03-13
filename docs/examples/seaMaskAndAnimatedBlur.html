@@ -53,6 +53,15 @@
 
 				// await for the first load
 				await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+
+				// update the style: mask sea
+				await wxsource.updateCurrentStyleObject({ mask: 'sea' });
+
+				// start the blur animation
+				(async function step(n = 0) {
+					await wxsource.updateCurrentStyleObject({ isolineText: false, blurRadius: ~~(10 * Math.sin(n / 500) + 10) });
+					requestAnimationFrame(step);
+				})();
 			}
 		</script>
 	</body>
