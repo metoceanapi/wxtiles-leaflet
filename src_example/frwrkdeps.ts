@@ -21,11 +21,22 @@ export function setURL(map: L.Map, time: string, datasetName: string, variable: 
 export async function initFrameWork() {
 	const map = L.map('map', {
 		center: [-40.75, 174.5],
-		zoom: 3,
+		zoom: 7,
 		zoomControl: false,
 	});
 
 	L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+	// class WxDebugLayer extends L.GridLayer {
+	// 	createTile(coords: { x: number; y: number; z: number }) {
+	// 		const tile = document.createElement('div');
+	// 		tile.innerHTML = [coords.x, coords.y, coords.z].join(', ');
+	// 		tile.style.outline = '1px solid red';
+	// 		return tile;
+	// 	}
+	// }
+	// map.addLayer(new WxDebugLayer().setZIndex(1000));
+
 	return map;
 }
 
@@ -49,6 +60,7 @@ export function removeLayer(map: L.Map, layerId: string, layer?: L.Layer) {
 export async function addLayer(map: L.Map, idS: string, idL: string, layer: L.Layer) {
 	map.addLayer(layer);
 	await new Promise((done) => layer.once('load', done)); // highly recommended to await for the first load
+	console.log('layer loaded', idS, idL);
 }
 
 export function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {

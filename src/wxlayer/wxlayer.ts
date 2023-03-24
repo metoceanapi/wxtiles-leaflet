@@ -210,7 +210,7 @@ export class WxLayer {
 
 	/** @internal load, cache, draw the tile. Abortable */
 	async loadTile(tile: XYZ, requestInit?: WxRequestInit): Promise<WxRasterData | null> {
-		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit);
+		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit).catch(() => null); // no throw
 	} // _loadTile
 
 	/** @internal cache given time step for faster access when needed. Resolved when done.
