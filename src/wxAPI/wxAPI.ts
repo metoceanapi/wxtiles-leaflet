@@ -270,8 +270,17 @@ export class WxAPI {
 		const instance = shortMeta?.instance;
 		if (!instance) throw new Error('Dataset/instance not found:' + datasetName);
 		const instanced = shortMeta.instanced;
-		const meta = await fetchJson<WxDatasetMeta>(this.dataServerURL + datasetName + '/' + instance + '/meta.json', this.requestInit);
-		return new WxDataSetManager({ datasetName, instanced, instance, meta, wxapi: this });
+		const fetchMeta = (i: string) => fetchJson<WxDatasetMeta>(this.dataServerURL + datasetName + '/' + i + '/meta.json', this.requestInit);
+		const meta = await fetchMeta(instance);
+		let metas = instanced && new Map<string, WxDatasetMeta>();
+		if (instanced) {
+			await Promise.all(
+				instanced.map(async (i) => {
+					metas!.set(i, await fetchMeta(i));
+				})
+			);
+		}
+		return new WxDataSetManager({ datasetName, instanced, instance, meta, metas, wxapi: this });
 	}
 
 	/**

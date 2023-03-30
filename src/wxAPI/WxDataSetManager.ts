@@ -38,6 +38,12 @@ export interface WxDataSetManagerOptions {
 
 	/**
 	 * @internal
+	 * Dataset's metas for an instanced dataset
+	 * */
+	metas?: Map<string, WxDatasetMeta>;
+
+	/**
+	 * @internal
 	 * The {@link WxAPI} instance to use to interact with the *WxTiles* API
 	 * */
 	wxapi: WxAPI;
@@ -62,18 +68,22 @@ export class WxDataSetManager {
 	readonly instance: string;
 
 	/**  dataset's meta */
-	readonly meta: WxDatasetMeta;
+	meta: WxDatasetMeta;
+
+	/**  dataset's metas for an instanced dataset */
+	readonly metas?: Map<string, WxDatasetMeta>;
 
 	/**  a reference to the wxAPI object */
 	readonly wxapi: WxAPI;
 
 	/** Do not use this constructor directly, use {@link WxAPI.createDatasetManager} instead. */
-	constructor({ datasetName, instance, instanced, meta, wxapi }: WxDataSetManagerOptions) {
+	constructor({ datasetName, instance, instanced, meta, metas, wxapi }: WxDataSetManagerOptions) {
 		if (!wxapi.datasetsMetas.allDatasetsList.includes(datasetName)) throw new Error(`Dataset ${datasetName} not found`);
 		this.datasetName = datasetName;
 		this.instanced = instanced;
 		this.instance = instance;
 		this.meta = meta;
+		this.metas = metas;
 		this.wxapi = wxapi;
 		WXLOG(`WxDataSetManager.constructor: ${this.datasetName}`);
 	}
@@ -170,6 +180,7 @@ export class WxDataSetManager {
 		if (!this.checkVariableValid(variable)) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
 		const validTime = this.getValidTime(time);
 		const instance = this.instanced ? validTime : this.instance;
+		this.meta = this.metas?.get(instance) || this.meta; // update meta if instanced
 		return `${this.wxapi.dataServerURL + this.datasetName}/${instance}/${variable}/${validTime}/{z}/{x}/{y}.${ext}`;
 	}
 
