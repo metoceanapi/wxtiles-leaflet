@@ -37,7 +37,7 @@ export async function start() {
 	// let variable = 'wave.direction.mean';
 
 	// let datasetName = 'obs-radar.rain.nzl.national';
-	// let variables: WxVars = ['reflectivity'];
+	// let variable = 'reflectivity';
 
 	// get datasetName from URL
 	const urlParams = window.location.toString().split('##')[1];
@@ -62,7 +62,7 @@ export async function start() {
 		console.log(e);
 	}
 
-	flyTo(map, zoom, lng, lat, bearing, pitch);
+	params && flyTo(map, zoom, lng, lat, bearing, pitch); // if no params stay at default position set in initFrameWork()
 
 	// const sth = { style: {} };
 	map.on('zoom', () => setURL(map, time, datasetName, variable, sth.style));
