@@ -74,7 +74,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 **/
 	async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName})`);
-		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with new time
+		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with current/newly set time
 		if (requestInit?.signal?.aborted) {
 			WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName}) aborted`);
 			return;
@@ -111,6 +111,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * 	<MBOX API> get assigned by map.addSource
 	 */
 	update() {
+		WXLOG(`WxTileSource update (${this.layer.wxdatasetManager.datasetName})`);
 		this._ForEachWxTile((wxtile: WxTile): void => {
 			// clear or draw the tile
 			wxtile.draw(wxtile.raster_data && this.layer.painter.getPaintedCanvas(wxtile.raster_data, this.animation, this.animationSeed));
@@ -145,7 +146,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 				tileEl.wxtile = new WxTile(coords, ctx, tile);
 			})
 			.catch(() => {
-				tileEl.wxtile = new WxTile(coords, ctx, null);
+				tileEl.wxtile = new WxTile(coords, ctx, null); 
 			})
 			.finally(done);
 

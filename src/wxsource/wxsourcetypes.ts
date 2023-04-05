@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { WxTileSource } from './wxsource';
 
 /**
  * Framework dependent source type to be inherited by the framework dependent custom source type.

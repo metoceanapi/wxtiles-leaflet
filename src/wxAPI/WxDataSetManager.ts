@@ -22,7 +22,7 @@ export interface WxDataSetManagerOptions {
 	 * @internal
 	 * current instance of the dataset
 	 * */
-	instance: string;
+	datasetCurrentInstance: string;
 
 	/**
 	 * @internal
@@ -34,19 +34,19 @@ export interface WxDataSetManagerOptions {
 	 * @internal
 	 * Dataset's meta data
 	 * */
-	meta: WxDatasetMeta;
+	datasetCurrentMeta: WxDatasetMeta;
 
 	/**
 	 * @internal
 	 * Dataset's metas for an instanced dataset
 	 * */
-	metas?: Map<string, WxDatasetMeta>;
+	metas: Map<string, WxDatasetMeta>;
 
 	/**
 	 * @internal
 	 * The {@link WxAPI} instance to use to interact with the *WxTiles* API
 	 * */
-	wxapi: WxAPI;
+	wxAPI: WxAPI;
 }
 
 /**
@@ -61,31 +61,35 @@ export class WxDataSetManager {
 	/** dataset's name  */
 	readonly datasetName: string;
 
-	/** if not empty, returns dataset's instances to be used as time steps in the dataset */
-	readonly instanced?: string[];
-
 	/** Get dataset's current instance. */
-	readonly instance: string;
+	private readonly datasetCurrentInstance: string;
 
 	/**  dataset's meta */
-	meta: WxDatasetMeta;
+	private readonly datasetCurrentMeta: WxDatasetMeta;
+
+	/** if not empty, returns dataset's instances to be used as time steps in the dataset */
+	private readonly instanced?: string[];
 
 	/**  dataset's metas for an instanced dataset */
-	readonly metas?: Map<string, WxDatasetMeta>;
+	private readonly metas: Map<string, WxDatasetMeta>;
 
 	/**  a reference to the wxAPI object */
-	readonly wxapi: WxAPI;
+	readonly wxAPI: WxAPI;
 
 	/** Do not use this constructor directly, use {@link WxAPI.createDatasetManager} instead. */
-	constructor({ datasetName, instance, instanced, meta, metas, wxapi }: WxDataSetManagerOptions) {
-		if (!wxapi.datasetsMetas.allDatasetsList.includes(datasetName)) throw new Error(`Dataset ${datasetName} not found`);
+	constructor({ datasetName, datasetCurrentInstance, instanced, datasetCurrentMeta, metas, wxAPI }: WxDataSetManagerOptions) {
+		if (!wxAPI.datasetsMetas.allDatasetsList.includes(datasetName)) throw new Error(`Dataset ${datasetName} not found`);
 		this.datasetName = datasetName;
 		this.instanced = instanced;
-		this.instance = instance;
-		this.meta = meta;
+		this.datasetCurrentInstance = datasetCurrentInstance;
+		this.datasetCurrentMeta = datasetCurrentMeta;
 		this.metas = metas;
-		this.wxapi = wxapi;
+		this.wxAPI = wxAPI;
 		WXLOG(`WxDataSetManager.constructor: ${this.datasetName}`);
+	}
+
+	isInstanced(): boolean {
+		return !!this.instanced;
 	}
 
 	/**
@@ -96,21 +100,24 @@ export class WxDataSetManager {
 	getValidTime(time: WxDate = Date()): string {
 		WXLOG(`WxDataSetManager.getValidTime: ${this.datasetName}, ${time}`);
 		const times = this.getTimes();
+
+		if (time === '') return times[times.length - 1]; // for empty string use last time
+
+		if (typeof time === 'string') {
+			const index = times.indexOf(time);
+			if (index !== -1) return times[index]; // if found use time from array
+		}
+
 		if (typeof time === 'number') {
 			if (time <= 0) return times[0]; // for negative numbers use first time
 			if (time < times.length) return times[time]; // for numbers in range use time from array
 		}
 
 		const ms = new Date(time).getTime(); // otherwise convert time as milliseconds
-		const found = times.find((t) => new Date(t).getTime() >= ms);
-		if (isNaN(ms) || !found) {
-			// try regular serch on strings
-			const index = times.indexOf(time as string);
-			if (index === -1) return times[times.length - 1]; // if not found use first time
-			return times[index];
-		}
+		if (isNaN(ms)) return times[times.length - 1]; // if not valid use first time
 
-		return found;
+		const found = times.find((t) => new Date(t).getTime() >= ms);
+		return found || times[times.length - 1];
 	}
 
 	/**
@@ -119,7 +126,7 @@ export class WxDataSetManager {
 	 * */
 	getTimes(): string[] {
 		WXLOG(`WxDataSetManager.getTimes: ${this.datasetName}`);
-		return this.instanced || this.meta.times;
+		return this.instanced || this.datasetCurrentMeta.times;
 	}
 
 	/**
@@ -128,17 +135,28 @@ export class WxDataSetManager {
 	 * */
 	getVariables(): string[] {
 		WXLOG(`WxDataSetManager.getVariables: ${this.datasetName}`);
-		return this.meta.variables;
+		return this.datasetCurrentMeta.variables;
 	}
 
 	/**
 	 * Get dataset's variable meta.
 	 * @argument {string} variable - variable name
-	 * @returns {WxVariableMeta} - some of dataset's variable meta
+	 * @returns {WxVariableMeta | undefined} - dataset variable's meta
 	 * */
 	getVariableMeta(variable: string): WxVariableMeta | undefined {
 		WXLOG(`WxDataSetManager.getVariableMeta: ${this.datasetName}, ${variable}`);
-		return this.meta.variablesMeta[variable];
+		return this.datasetCurrentMeta.variablesMeta[variable];
+	}
+
+	/**
+	 * For instanced dataset, get variable's meta.
+	 * @argument {string} variable - variable name
+	 * @argument {string} instance - instance name
+	 * @returns {WxVariableMeta | undefined} - dataset variable's meta for the given instance
+	 * */
+	getInstanceVariableMeta(variable: string, instance: string): WxVariableMeta | undefined {
+		WXLOG(`WxDataSetManager.getInstanceVariableMeta: ${this.datasetName}, ${variable}, ${instance}`);
+		return this.getInstanceMeta(instance).variablesMeta[variable];
 	}
 
 	/**
@@ -146,18 +164,8 @@ export class WxDataSetManager {
 	 * @returns {number} - maximum zoom level of the dataset
 	 * */
 	getMaxZoom(): number {
-		return this.meta.maxZoom;
-	}
-
-	/**
-	 * Get dataset's boundaries.
-	 * @returns {[west, north, east, south] | undefined} - dataset's boundaries
-	 * */
-	getBoundaries180(): [number, number, number, number] | undefined {
-		const b180a = this.meta.boundaries?.boundaries180;
-		if (!(b180a?.length === 1)) return; // TODO can't make lon = [170 to 190] as mapBox uses -180 to 180, so need to check for that in loader
-		const b180 = b180a[0]; // else let mapbox manage boundaries
-		return [b180.west, b180.south, b180.east, b180.north];
+		WXLOG(`WxDataSetManager.getMaxZoom: ${this.datasetName}`);
+		return this.datasetCurrentMeta.maxZoom;
 	}
 
 	/**
@@ -165,7 +173,18 @@ export class WxDataSetManager {
 	 * @returns {WxAllBoundariesMeta | undefined} - dataset's boundaries
 	 * */
 	getBoundaries(): WxAllBoundariesMeta | undefined {
-		return this.meta.boundaries;
+		WXLOG(`WxDataSetManager.getBoundaries: ${this.datasetName}`);
+		return this.datasetCurrentMeta.boundaries;
+	}
+
+	/**
+	 * Get dataset's metadata for the given instance.
+	 * @param {string} instance
+	 * @returns {WxDatasetMeta}
+	 */
+	getInstanceMeta(instance: string): WxDatasetMeta {
+		WXLOG(`WxDataSetManager.getInstanceMeta: ${this.datasetName}, ${instance}`);
+		return (this.instanced && this.metas.get(instance)) || this.datasetCurrentMeta;
 	}
 
 	/**
@@ -175,13 +194,11 @@ export class WxDataSetManager {
 	 * @argument {'png'} ext - must be PNG
 	 * @returns {string} - dataset's current URI ready for fetching tiles
 	 * */
-	createURI(variable: string, time?: WxDate, ext: 'png' = 'png'): string {
-		WXLOG(`WxDataSetManager.createURI: ${this.datasetName}, ${variable}, ${time}`);
+	createURI(variable: string, validTime: string, ext: 'png' = 'png'): string {
+		WXLOG(`WxDataSetManager.createURI: ${this.datasetName}, ${variable}, ${validTime}`);
 		if (!this.checkVariableValid(variable)) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
-		const validTime = this.getValidTime(time);
-		const instance = this.instanced ? validTime : this.instance;
-		this.meta = this.metas?.get(instance) || this.meta; // update meta if instanced
-		return `${this.wxapi.dataServerURL + this.datasetName}/${instance}/${variable}/${validTime}/{z}/{x}/{y}.${ext}`;
+		const instance = this.instanced ? validTime : this.datasetCurrentInstance;
+		return `${this.wxAPI.dataServerURL + this.datasetName}/${instance}/${variable}/${validTime}/{z}/{x}/{y}.${ext}`;
 	}
 
 	/**
@@ -201,12 +218,18 @@ export class WxDataSetManager {
 	 * */
 	checkCombineVariableIfVector(variable: string): WxVars {
 		WXLOG(`WxDataSetManager.checkCombineVariableIfVector: ${this.datasetName}, ${variable}`);
-		const meta = this.getVariableMeta(variable);
-		if (!meta) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
-		return meta.vector || [variable]; // check if variable is vector and use vector components if so
+		const variableMeta = this.getVariableMeta(variable);
+		if (!variableMeta) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
+		return variableMeta.vector || [variable]; // check if variable is vector and use vector components if so
 	}
 
-	createSourceLayer(options: WxSourceLayerOptions, frwOptions: FrameworkOptions) {
+	/**
+	 *
+	 * @param {WxSourceLayerOptions} options - layer options
+	 * @param {WxSourceLayerOptions} frwOptions - framework options
+	 * @returns {WxTileSource}
+	 */
+	createSourceLayer(options: WxSourceLayerOptions, frwOptions: FrameworkOptions): WxTileSource {
 		WXLOG(`WxDataSetManager.createSourceLayer: ${this.datasetName}`);
 		const layerOptions: WxLayerOptions = {
 			...options,
@@ -218,16 +241,18 @@ export class WxDataSetManager {
 	}
 
 	/**
+	 * A part of WxAPI (is not used internally)
 	 * Check if dataset's instance updated (fresh data is arrived) since datasset object was created
 	 * @returns {boolean} - true if dataset's instance updated since datasset object was created
 	 * */
 	async checkDatasetOutdated(): Promise<boolean> {
 		WXLOG(`WxDataSetManager.checkDatasetOutdated: ${this.datasetName}`);
-		await this.wxapi.initDone;
-		return (await this.getDatasetInstance()) === this.instance;
+		await this.wxAPI.initDone;
+		return (await this.getDatasetInstance()) === this.datasetCurrentInstance;
 	}
 
 	/**
+	 * A part of WxAPI (is not used internally)
 	 * Get dataset's instance.
 	 * @returns {Promise<string>} - dataset's instance
 	 * */
@@ -238,17 +263,18 @@ export class WxDataSetManager {
 	}
 
 	/**
+	 * A part of WxAPI (is not used internally)
 	 * Get dataset's instances.
 	 * @returns {Promise<string[]>} - dataset's all instances
 	 * */
 	protected async getDatasetInstances(): Promise<string[]> {
 		WXLOG(`WxDataSetManager.getDatasetInstances: ${this.datasetName}`);
 		try {
-			const instances = await fetchJson<WxInstances>(this.wxapi.dataServerURL + this.datasetName + '/instances.json', this.wxapi.requestInit);
+			const instances = await fetchJson<WxInstances>(this.wxAPI.dataServerURL + this.datasetName + '/instances.json', this.wxAPI.requestInit);
 			if (instances.length === 0) throw new Error(`No instances found for dataset ${this.datasetName}`);
 			return instances;
 		} catch (e) {
-			throw new Error(`getting dataset instances failure  message: ${e.message} datasetName: ${this.datasetName}`);
+			throw new Error(`getting dataset instances failure message: ${e.message} datasetName: ${this.datasetName} (they are likely removed from API)`);
 		}
 	}
 }

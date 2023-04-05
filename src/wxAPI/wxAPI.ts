@@ -266,21 +266,15 @@ export class WxAPI {
 	async createDatasetManager(datasetName: string): Promise<WxDataSetManager> {
 		await this.initDone;
 		WXLOG('WxAPI.createDatasetManager', datasetName);
-		const shortMeta = this.getDatasetShortMeta(datasetName);
-		const instance = shortMeta?.instance;
-		if (!instance) throw new Error('Dataset/instance not found:' + datasetName);
-		const instanced = shortMeta.instanced;
+		const datasetShortMeta = this.getDatasetShortMeta(datasetName);
+		const datasetCurrentInstance = datasetShortMeta?.instance;
+		if (!datasetCurrentInstance) throw new Error('Dataset/instance not found:' + datasetName);
+		const instanced = datasetShortMeta.instanced;
 		const fetchMeta = (i: string) => fetchJson<WxDatasetMeta>(this.dataServerURL + datasetName + '/' + i + '/meta.json', this.requestInit);
-		const meta = await fetchMeta(instance);
-		let metas = instanced && new Map<string, WxDatasetMeta>();
-		if (instanced) {
-			await Promise.all(
-				instanced.map(async (i) => {
-					metas!.set(i, await fetchMeta(i));
-				})
-			);
-		}
-		return new WxDataSetManager({ datasetName, instanced, instance, meta, metas, wxapi: this });
+		const fetchMeta2 = async (i: string) => <[string, WxDatasetMeta]>[i, await fetchMeta(i)];
+		const datasetCurrentMeta = await fetchMeta(datasetCurrentInstance);
+		const metas = new Map(instanced ? await Promise.all(instanced.map(fetchMeta2)) : [[datasetCurrentInstance, datasetCurrentMeta]]);
+		return new WxDataSetManager({ datasetName, datasetCurrentInstance, datasetCurrentMeta, instanced, metas, wxAPI: this });
 	}
 
 	/**

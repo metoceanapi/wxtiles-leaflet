@@ -1,6 +1,6 @@
 import { type WxColorStyleWeak, WxGetColorStyles, type XYZ, type WxColorStyleStrict, WXLOG } from '../utils/wxtools';
 import { type WxRequestInit, type WxDate, WxLayer, type WxVars, type WxLayerOptions, WxLngLat, WxTileInfo } from './wxlayer';
-import { WxVariableMeta } from '../wxAPI/wxAPI';
+import { WxDatasetMeta, WxVariableMeta } from '../wxAPI/wxAPI';
 import { FrameworkParentClass, FrameworkOptions } from '../wxsource/wxsourcetypes';
 import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
 
@@ -9,7 +9,7 @@ import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
  */
 export interface WxLayerBaseAPI {
 	wxdatasetManager: WxDataSetManager;
-	getMetadata(): WxVariableMeta;
+	getCurrentVariableMeta(): WxVariableMeta;
 	getVariables(): WxVars;
 	clearCache(): void;
 	getCurrentStyleObjectCopy(): WxColorStyleStrict;
@@ -79,7 +79,7 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 		WXLOG(`WxLayerBaseImplementation.constructor (${frwOptions.id})`);
 		super(frwOptions);
 		this.layer = new WxLayer(wxLayerOptions);
-		this.oldMaxZoom = this.layer.wxdatasetManager.meta.maxZoom;
+		this.oldMaxZoom = this.layer.getMaxZoom();
 	} // constructor
 
 	/**
@@ -95,13 +95,17 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 * Get the metadata of the current variable(s).
 	 * @returns {WxVariableMeta} - The metadata of the current variable.
 	 */
-	getMetadata(): WxVariableMeta {
+	getCurrentVariableMeta(): WxVariableMeta {
 		WXLOG(`WxLayerBaseImplementation.getMetadata (${this.id})`);
-		return { ...this.layer.currentMeta };
+		return { ...this.layer.currentVariableMeta };
+	}
+
+	getDatasetMeta(): WxDatasetMeta {
+		return this.layer.wxdatasetManager.getInstanceMeta(this.getTime());
 	}
 
 	/**
-	 * Get current variables of the source.
+	 * Get current variables (1 or 2) of the source/layer.
 	 * @returns {WxVars} variables of the source.
 	 */
 	getVariables(): WxVars {
@@ -133,6 +137,11 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	getTime(): string {
 		WXLOG(`WxLayerBaseImplementation.getTime (${this.id})`);
 		return this.layer.getTime();
+	}
+
+	getTimes(): string[] {
+		WXLOG(`WxLayerBaseImplementation.getTimes (${this.id})`);
+		return this.layer.wxdatasetManager.getTimes();
 	}
 
 	/**
@@ -203,21 +212,23 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 
 	/** set coarse maximum zoom level to make tiles load faster during animation */
 	async setCoarseLevel(level: number = 2): Promise<void> {
-		WXLOG(`WxLayerBaseImplementation.setCoarseLevel (${this.id}) level=${level}`);
-		const desLevel = Math.max(this.oldMaxZoom - level, 0);
-		if (this.layer.wxdatasetManager.meta.maxZoom !== desLevel) {
-			this.layer.wxdatasetManager.meta.maxZoom = desLevel;
-			return this._reloadVisible();
-		}
+		// TODO
+		// WXLOG(`WxLayerBaseImplementation.setCoarseLevel (${this.id}) level=${level}`);
+		// const desLevel = Math.max(this.oldMaxZoom - level, 0);
+		// if (this.layer.wxdatasetManager.meta.maxZoom !== desLevel) {
+		// 	this.layer.wxdatasetManager.meta.maxZoom = desLevel; // TODO: rethink the logic
+		// 	return this._reloadVisible();
+		// }
 	}
 
 	/** restores to the dataset's maximum zoom level */
 	async unsetCoarseLevel(): Promise<void> {
-		WXLOG(`WxLayerBaseImplementation.unsetCoarseLevel (${this.id})`);
-		if (this.layer.wxdatasetManager.meta.maxZoom !== this.oldMaxZoom) {
-			this.layer.wxdatasetManager.meta.maxZoom = this.oldMaxZoom;
-			return this._reloadVisible();
-		}
+		// TODO
+		// WXLOG(`WxLayerBaseImplementation.unsetCoarseLevel (${this.id})`);
+		// if (this.layer.wxdatasetManager.meta.maxZoom !== this.oldMaxZoom) {
+		// 	this.layer.wxdatasetManager.meta.maxZoom = this.oldMaxZoom;
+		// 	return this._reloadVisible();
+		// }
 	}
 
 	/**

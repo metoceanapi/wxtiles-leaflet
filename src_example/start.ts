@@ -14,7 +14,7 @@ export const OPACITY = 0.8;
 export async function start() {
 	const map = await initFrameWork();
 	addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
-	WxTilesLogging(false);
+	WxTilesLogging(console.trace);
 	// const dataServerURL = 'http://localhost:9191/data/';
 	// const dataServerURL = 'https://68.171.214.87/data/'
 	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
@@ -96,7 +96,7 @@ export async function start() {
 		}
 		const meta = wxdatasetManager.getVariableMeta(variable);
 		if (meta?.units === 'RGB') {
-			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variable, 0), wxdatasetManager.getMaxZoom());
+			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variable, wxdatasetManager.getTimes()[0]), wxdatasetManager.getMaxZoom());
 			timeControl.setTimes(wxdatasetManager.getTimes());
 			legendControl.clear();
 		} else {
@@ -116,6 +116,7 @@ export async function start() {
 	addControl(map, timeControl, 'top-left');
 	timeControl.onchange = (time_) => {
 		setURL(map, (time = time_), datasetName, variable, sth.style);
+		infoControl.update(wxsource, map);
 	};
 
 	const customStyleEditorControl = new WxStyleEditorControl();
