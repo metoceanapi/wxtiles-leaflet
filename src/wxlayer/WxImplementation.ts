@@ -1,5 +1,5 @@
 import { type WxColorStyleWeak, WxGetColorStyles, type XYZ, type WxColorStyleStrict, WXLOG } from '../utils/wxtools';
-import type { WxRequestInit, WxDate, WxVars, WxLayerOptions, WxLngLat, WxTileInfo } from './wxlayer';
+import type { WxRequestInit, WxDate, WxVars, WxLayerOptions, WxLngLat, WxTileInfo, TilesCache } from './wxlayer';
 import { WxLayer } from './wxlayer';
 import type { WxDatasetMeta, WxVariableMeta } from '../wxAPI/wxAPI';
 import { FrameworkParentClass, type FrameworkOptions } from '../wxsource/wxsourcetypes';
@@ -97,12 +97,22 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 * @returns {WxVariableMeta} - The metadata of the current variable.
 	 */
 	getCurrentVariableMeta(): WxVariableMeta {
-		WXLOG(`WxLayerBaseImplementation.getMetadata (${this.id})`);
+		WXLOG(`WxLayerBaseImplementation.getCurrentVariableMeta (${this.id})`);
 		return { ...this.layer.currentVariableMeta };
 	}
 
 	getDatasetMeta(): WxDatasetMeta {
 		return this.layer.wxdatasetManager.getInstanceMeta(this.getTime());
+	}
+
+	/**
+	 * Get the metadata of the current variable(s).
+	 * @deprecated
+	 * @returns {WxVariableMeta} - The metadata of the current variable.
+	 */
+	getMetadata(): WxVariableMeta {
+		WXLOG(`WxLayerBaseImplementation.getMetadata (${this.id})`);
+		return { ...this.layer.currentVariableMeta };
 	}
 
 	/**
@@ -120,6 +130,10 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	clearCache(): void {
 		WXLOG(`WxLayerBaseImplementation.clearCache (${this.id})`);
 		this.layer.clearCache();
+	}
+
+	getCache(): TilesCache {
+		return this.layer.tilesCache;
 	}
 
 	/**
@@ -291,6 +305,7 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	/**
 	 * @ignore
 	 * A dummy function to be replaced by ancestor classes.
+	 * Force reload and redraw all tiles.
 	 */
 	protected update() {}
 }

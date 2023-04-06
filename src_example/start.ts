@@ -17,7 +17,7 @@ export async function start() {
 	// WxTilesLogging(console.trace);
 	// const dataServerURL = 'http://localhost:9191/data/';
 	// const dataServerURL = 'https://68.171.214.87/data/'
-	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
+	const dataServerURL = 'https://tilestest.metoceanapi.com/data/';
 	// const dataServerURL = 'http://tiles3.metoceanapi.com/';
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
@@ -59,18 +59,17 @@ export async function start() {
 		sth.style = str && { ...JSON.parse(decodeURI(str)) }; // reset levels if change units
 	} catch (e) {
 		/* ignore errors silently */
-		console.log(e);
+		console.log("Can't parse style from URL");
 	}
 
 	params && flyTo(map, zoom, lng, lat, bearing, pitch); // if no params stay at default position set in initFrameWork()
 
-	// const sth = { style: {} };
 	map.on('zoom', () => setURL(map, time, datasetName, variable, sth.style));
 	map.on('drag', () => setURL(map, time, datasetName, variable, sth.style));
 	map.on('rotate', () => setURL(map, time, datasetName, variable, sth.style));
 	map.on('pitch', () => setURL(map, time, datasetName, variable, sth.style));
 
-	let wxsource: WxTileSource | undefined;
+	let wxsourceLayer: WxTileSource | undefined;
 
 	const legendControl = new WxLegendControl();
 	addControl(map, legendControl, 'top-right');
@@ -78,18 +77,18 @@ export async function start() {
 	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: 'WxTiles' };
 	const apiControl = new WxAPIControl(wxapi, datasetName, variable);
 	addControl(map, apiControl, 'top-left');
-	apiControl.onchange = async (datasetName_, variable_, nonnativecall): Promise<void> => {
+	apiControl.onchange = async (datasetName_, variable_, resetStyleAndFlyTo = true): Promise<void> => {
 		WXLOG('apiControl.onchange datasetName=', datasetName_, 'variable=', variable_);
 		// remove existing source and layer
-		removeLayer(map, frameworkOptions.id, wxsource);
+		removeLayer(map, frameworkOptions.id, wxsourceLayer);
 		//
-		nonnativecall || (sth.style = {}); // reset style if change dataset/variable
-		wxsource = undefined;
+		resetStyleAndFlyTo && (sth.style = {}); // reset style if change dataset/variable
+		wxsourceLayer = undefined;
 		datasetName = datasetName_;
 		variable = variable_;
 		const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 		const boundaries = wxdatasetManager.getBoundaries();
-		if (boundaries && !nonnativecall) {
+		if (boundaries && resetStyleAndFlyTo) {
 			const { east, west, north, south } = boundaries.boundariesnorm;
 			const zoom = Math.round(Math.log((360 * 360) / Math.max((east - west + 360) % 360, north - south) / 360) / Math.LN2); // from https://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds
 			flyTo(map, zoom, (east + west) / 2, (north + south) / 2, 0, 0);
@@ -100,35 +99,33 @@ export async function start() {
 			timeControl.setTimes(wxdatasetManager.getTimes());
 			legendControl.clear();
 		} else {
-			wxsource = wxdatasetManager.createSouconst VER = uint32(10000)
-			const VER = uint32(10000)
-			const VER = uint32(10000)
-			rceLayer({ variable, time, wxstyle: sth.style }, frameworkOptions);
-			await addLayer(map, frameworkOptions.id, 'wxtiles', wxsource);
-			const styleCopy = wxsource.getCurrentStyleObjectCopy();
+			wxsourceLayer = wxdatasetManager.createSourceLayer({ variable, time, wxstyle: sth.style }, frameworkOptions);
+			await addLayer(map, 'wxtiles', wxsourceLayer);
+			// wxsource.startAnimation();
+			const styleCopy = wxsourceLayer.getCurrentStyleObjectCopy();
 			legendControl.drawLegend(styleCopy); // first draw legend with current style
 			styleCopy.levels = sth.style?.levels; // no need to show defaults it in the editor and URL
 			styleCopy.colors = sth.style?.colors; // no need to show defaults it in the editor and URL
 			await customStyleEditorControl.onchange?.(styleCopy, true);
 		}
 
-		timeControl.updateSource(wxsource);
+		timeControl.updateSource(wxsourceLayer);
 	};
 
 	const timeControl = new WxTimeControl(50);
 	addControl(map, timeControl, 'top-left');
 	timeControl.onchange = (time_) => {
 		setURL(map, (time = time_), datasetName, variable, sth.style);
-		infoControl.update(wxsource, map);
+		infoControl.update(wxsourceLayer, map);
 	};
 
 	const customStyleEditorControl = new WxStyleEditorControl();
 	addControl(map, customStyleEditorControl, 'top-right');
 	customStyleEditorControl.onchange = async (style, nonnativecall) => {
 		WXLOG('customStyleEditorControl.onchange');
-		if (!wxsource) return;
-		nonnativecall || (await wxsource.updateCurrentStyleObject(style)); // if called manually, do not update wxsource's style
-		const nstyle = wxsource.getCurrentStyleObjectCopy();
+		if (!wxsourceLayer) return;
+		nonnativecall || (await wxsourceLayer.updateCurrentStyleObject(style)); // if called manually, do not update wxsource's style
+		const nstyle = wxsourceLayer.getCurrentStyleObjectCopy();
 		legendControl.drawLegend(nstyle);
 		nstyle.levels = style?.levels; // keep levels empty if they are not defined
 		nstyle.colors = style?.colors; // keep colors empty if they are not defined
@@ -139,9 +136,9 @@ export async function start() {
 
 	const infoControl = new WxInfoControl();
 	addControl(map, infoControl, 'bottom-left');
-	map.on('mousemove', (e) => infoControl.update(wxsource, map, position(e)));
+	map.on('mousemove', (e) => infoControl.update(wxsourceLayer, map, position(e)));
 
-	await apiControl.onchange(datasetName, variable, true); // initial load
+	await apiControl.onchange(datasetName, variable, false); // initial load
 
 	/*/ DEMO: more interactive - additional level and a bit of the red transparentness around the level made from current mouse position
 	if (wxsource) {

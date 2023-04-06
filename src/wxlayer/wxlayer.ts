@@ -78,6 +78,19 @@ export interface WxLayerOptions {
 	wxstyle?: WxColorStyleWeak;
 }
 
+export class TilesCache extends Map<string, WxRasterData> {
+	clear(): void {
+		WXLOG(`TilesCache.clear()`);
+		this.forEach((v) => {
+			if (!v.rd) return;
+			v.rd.gl.deleteTexture(v.rd.vectorTextureU);
+			v.rd.gl.deleteTexture(v.rd.vectorTextureV);
+		});
+
+		super.clear();
+	}
+}
+
 /**
  * @internal
  * Used in {@link WxLayerBaseImplementation} to manipulate the the layer's style, data and time
@@ -105,7 +118,7 @@ export class WxLayer {
 	CLUT: RawCLUT;
 
 	/** @internal cahced URI->data */
-	protected tilesCache: Map<string, WxRasterData> = new Map();
+	tilesCache: TilesCache = new TilesCache();
 
 	/** @internal Painter object to render tiles */
 	readonly painter: Painter = new Painter(this);
@@ -227,7 +240,10 @@ export class WxLayer {
 
 	/** @internal load, cache, draw the tile. Abortable */
 	async loadTile(tile: XYZ, requestInit?: WxRequestInit): Promise<WxRasterData | null> {
-		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit).catch(() => null); // no throw
+		return this._loadCacheDrawTile(tile, this.tilesCache, requestInit).catch((e) => {
+			if (e.name === 'AbortError') throw e; // re-throw abort in case MapBox wants to handle it
+			return null; // else NODATA in the tile
+		});
 	} // _loadTile
 
 	/** @internal cache given time step for faster access when needed. Resolved when done.
@@ -247,14 +263,17 @@ export class WxLayer {
 	 * @returns {Promise<viod>} */
 	async reloadTiles(tiles: XYZ[], requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxLayer.reloadTiles`);
-		const tilesCache = new Map<string, WxRasterData>();
+		const tilesCache = new TilesCache();
 		await Promise.allSettled(tiles.map((tile) => this._loadCacheDrawTile(tile, tilesCache, requestInit))); // fill up cache
 
-		if (!requestInit?.signal?.aborted) this.tilesCache = tilesCache; // replace cache
+		if (!requestInit?.signal?.aborted) {
+			this.tilesCache.clear(); // clear old cache
+			this.tilesCache = tilesCache; // replace cache
+		} else tilesCache.clear(); // clear unneeded cache
 	} // _reloadTiles
 
 	/** @ignore */
-	protected async _loadCacheDrawTile(tile: XYZ, tilesCache: Map<string, WxRasterData>, requestInit?: WxRequestInit): Promise<WxRasterData | null> {
+	protected async _loadCacheDrawTile(tile: XYZ, tilesCache: TilesCache, requestInit?: WxRequestInit): Promise<WxRasterData | null> {
 		const tileData = tilesCache.get(HashXYZ(tile));
 		if (tileData) return tileData;
 

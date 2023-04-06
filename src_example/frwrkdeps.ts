@@ -57,10 +57,9 @@ export function removeLayer(map: L.Map, layerId: string, layer?: L.Layer) {
 	});
 }
 
-export async function addLayer(map: L.Map, idS: string, idL: string, layer: L.Layer) {
+export async function addLayer(map: L.Map, idL: string, layer: L.Layer) {
 	map.addLayer(layer);
 	await new Promise((done) => layer.once('load', done)); // highly recommended to await for the first load
-	console.log('layer loaded', idS, idL);
 }
 
 export function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {

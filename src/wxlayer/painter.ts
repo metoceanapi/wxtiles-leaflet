@@ -34,6 +34,12 @@ export interface WxRasterData {
 	 * {@link WxData} data object for this tile
 	 * */
 	data: WxData;
+
+	rd?: {
+		vectorTextureU: WebGLTexture;
+		vectorTextureV: WebGLTexture;
+		gl: WebGLRenderingContext;
+	};
 }
 
 /**
@@ -219,8 +225,8 @@ function _printVectorsStatic(data: DataPictures, ctx: CanvasRenderingContext2D, 
 
 			const ang = Math.atan2(u.dmin + u.raw[di] * u.dmul, v.dmin + v.raw[di] * v.dmul);
 			const vecLen = l.dmin + l.raw[di] * l.dmul;
-			const sm = style.vectorType !== 'barbs' ? style.vectorFactor * 0.2 : 0.2; /*0.2 to fit font*/
-			const vecCode = Math.min(CLUT.DataToKnots(vecLen) * sm, 25 /* to fit .ttf */) + 65; /* A */
+			const sm = style.vectorType !== 'barbs' ? style.vectorFactor * 0.5 : 0.2; /*0.2 to fit font*/
+			const vecCode = Math.min(~~(CLUT.DataToKnots(vecLen) * sm), 25 /* to fit .ttf */) + 65; /* A */
 			const vecChar = String.fromCharCode(vecCode);
 			switch (style.vectorColor) {
 				case 'inverted':
