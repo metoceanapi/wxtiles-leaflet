@@ -224,7 +224,6 @@ export class WxDataSetManager {
 	}
 
 	/**
-	 *
 	 * @param {WxSourceLayerOptions} options - layer options
 	 * @param {WxSourceLayerOptions} frwOptions - framework options
 	 * @returns {WxTileSource}

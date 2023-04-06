@@ -1,11 +1,11 @@
 import { RawCLUT } from '../utils/RawCLUT';
 import { WxGetColorStyles, HashXYZ, RGBtoHEX, create2DContext, WXLOG } from '../utils/wxtools';
 import type { WxColorStyleStrict, XYZ, DataPictures, WxColorStyleWeak } from '../utils/wxtools';
-import { WxAPI, WxAllBoundariesMeta, type WxVariableMeta } from '../wxAPI/wxAPI';
-import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
-import { Loader, type WxData } from './loader';
+import type { WxAllBoundariesMeta, WxVariableMeta } from '../wxAPI/wxAPI';
+import type { WxDataSetManager } from '../wxAPI/WxDataSetManager';
+import { Loader } from './loader';
 import { Painter, type WxRasterData } from './painter';
-import { WxTileSource } from '../wxsource/wxsource';
+import type { WxTileSource } from '../wxsource/wxsource';
 
 /** Type used to set a time step for the layer. */
 export type WxDate = string | number | Date;

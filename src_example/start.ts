@@ -14,7 +14,7 @@ export const OPACITY = 0.8;
 export async function start() {
 	const map = await initFrameWork();
 	addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
-	WxTilesLogging(console.trace);
+	// WxTilesLogging(console.trace);
 	// const dataServerURL = 'http://localhost:9191/data/';
 	// const dataServerURL = 'https://68.171.214.87/data/'
 	const dataServerURL = 'https://tiles.metoceanapi.com/data/';
@@ -29,15 +29,15 @@ export async function start() {
 		requestInit: { headers: myHeaders },
 	});
 
-	let datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
-	let variable = 'air.temperature.at-2m';
+	// let datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
+	// let variable = 'air.temperature.at-2m';
 	// let variables: WxVars = ['wind.speed.eastward.at-10m', 'wind.speed.northward.at-10m'];
 
 	// let datasetName = 'ww3-ecmwf.global';
 	// let variable = 'wave.direction.mean';
 
-	// let datasetName = 'obs-radar.rain.nzl.national';
-	// let variable = 'reflectivity';
+	let datasetName = 'obs-radar.rain.nzl.national';
+	let variable = 'reflectivity';
 
 	// get datasetName from URL
 	const urlParams = window.location.toString().split('##')[1];
@@ -100,7 +100,10 @@ export async function start() {
 			timeControl.setTimes(wxdatasetManager.getTimes());
 			legendControl.clear();
 		} else {
-			wxsource = wxdatasetManager.createSourceLayer({ variable, time, wxstyle: sth.style }, frameworkOptions);
+			wxsource = wxdatasetManager.createSouconst VER = uint32(10000)
+			const VER = uint32(10000)
+			const VER = uint32(10000)
+			rceLayer({ variable, time, wxstyle: sth.style }, frameworkOptions);
 			await addLayer(map, frameworkOptions.id, 'wxtiles', wxsource);
 			const styleCopy = wxsource.getCurrentStyleObjectCopy();
 			legendControl.drawLegend(styleCopy); // first draw legend with current style

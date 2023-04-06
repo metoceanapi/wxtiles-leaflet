@@ -6,6 +6,10 @@ import { type WxRasterData } from '../wxlayer/painter';
 import { WxLayerBaseImplementation, type WxLayerAPI } from '../wxlayer/WxImplementation';
 import { FrameworkOptions } from './wxsourcetypes';
 
+/**
+ * @ignore
+ * A class to represent a tile
+ **/
 class WxTile {
 	constructor(public coords: XYZ, public ctx: CanvasRenderingContext2D, public raster_data: WxRasterData | null) {
 		this.draw(raster_data?.ctxFill.canvas);
@@ -17,6 +21,10 @@ class WxTile {
 	}
 }
 
+/**
+ * @ignore
+ * Extended HTMLCanvasElement with a reference to the WxTile
+ * */
 interface TileEl extends HTMLCanvasElement {
 	wxtile?: WxTile;
 }
@@ -40,6 +48,7 @@ interface TileEl extends HTMLCanvasElement {
 	// create a layer source
 	const wxsource = new WxTileSource({ wxdatasetManager, variables }, { id: 'wxsource', attribution: 'WxTiles' });
  * ```
+ * Or use the {@link WxDataSetManager.createSourceLayer} method to create a layer/source in one step.
  */
 export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAPI {
 	/**
@@ -146,7 +155,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 				tileEl.wxtile = new WxTile(coords, ctx, tile);
 			})
 			.catch(() => {
-				tileEl.wxtile = new WxTile(coords, ctx, null); 
+				tileEl.wxtile = new WxTile(coords, ctx, null);
 			})
 			.finally(done);
 

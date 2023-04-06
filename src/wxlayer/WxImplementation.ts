@@ -1,8 +1,9 @@
 import { type WxColorStyleWeak, WxGetColorStyles, type XYZ, type WxColorStyleStrict, WXLOG } from '../utils/wxtools';
-import { type WxRequestInit, type WxDate, WxLayer, type WxVars, type WxLayerOptions, WxLngLat, WxTileInfo } from './wxlayer';
-import { WxDatasetMeta, WxVariableMeta } from '../wxAPI/wxAPI';
-import { FrameworkParentClass, FrameworkOptions } from '../wxsource/wxsourcetypes';
-import { WxDataSetManager } from '../wxAPI/WxDataSetManager';
+import type { WxRequestInit, WxDate, WxVars, WxLayerOptions, WxLngLat, WxTileInfo } from './wxlayer';
+import { WxLayer } from './wxlayer';
+import type { WxDatasetMeta, WxVariableMeta } from '../wxAPI/wxAPI';
+import { FrameworkParentClass, type FrameworkOptions } from '../wxsource/wxsourcetypes';
+import type { WxDataSetManager } from '../wxAPI/WxDataSetManager';
 
 /**
  * Mandatory Interface to be implemented by a {@link WxLayerBaseImplementation}
