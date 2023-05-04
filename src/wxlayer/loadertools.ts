@@ -76,7 +76,9 @@ function interpolatorSquareDegree(a: number, b: number, c: number, d: number, dx
 	const u = interpolatorDegreeLinear(a, b, dxt); // upper line
 	const l = interpolatorDegreeLinear(c, d, dxt); // lower line
 	// Encode Data back before returning
-	return (interpolatorDegreeLinear(u, l, dyt) - dmin) / dmul || 1; // 0 is NaN, we don't need NaN here!
+	const ul = (interpolatorDegreeLinear(u, l, dyt) - dmin) / dmul;
+	if (ul < 1) return 1;
+	return ul; // ul0 is NaN, we don't need NaN here!
 }
 
 function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: number, dyt: number, dmin: number, dmul: number): number {
@@ -109,7 +111,7 @@ function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: num
 }
 
 function subDataPicture(interpolator: InterpolatorSquare, inputData: DataPicture, subCoords: XYZ): DataPicture {
-	const subTileSize = 1 / Math.pow(2, subCoords.z); // a size of a subtile
+	const subTileSize = 1 / 2 ** subCoords.z; // a size of a subtile
 	const subTileStartX = subCoords.x * 256 * subTileSize - 0.5; // upper left point of a subtile Shifted by 0.5 to get the center of the pixel
 	const subTileStartY = subCoords.y * 256 * subTileSize - 0.5;
 	const { raw: inRaw, dmin, dmax, dmul } = inputData;
@@ -131,7 +133,7 @@ function subDataPicture(interpolator: InterpolatorSquare, inputData: DataPicture
 			outRaw[outIndex] = interpolator(a, b, c, d, xt, yt, dmin, dmul);
 		} // for x
 	} // for y
-	
+
 	return subData;
 }
 
@@ -145,7 +147,7 @@ export function subMask(inputData: ImageData, subCoords: XYZ | undefined, channe
 	if (!subCoords) return inputData;
 
 	const clamp = (v: number) => (v < 0 ? 0 : v > 254 ? 254 : v);
-	const subTileSize = 1 / Math.pow(2, subCoords.z); // a size of a subtile
+	const subTileSize = 1 / 2 ** subCoords.z; // a size of a subtile
 	const subTileStartX = subCoords.x * 256 * subTileSize - 0.5; // upper left point of a subtile Shifted by 0.5 to get the center of the pixel
 	const subTileStartY = subCoords.y * 256 * subTileSize - 0.5;
 	const { data: inData } = inputData;
