@@ -11,8 +11,6 @@ esbuild
 		loader: {
 			'.png': 'base64',
 			'.woff': 'base64',
-			'.fs': 'text',
-			'.vs': 'text',
 		},
 		target: 'es2020',
 		format: 'iife',

@@ -6,7 +6,7 @@
 	"types": "dist/es/index.d.ts",
 	"scripts": {
 		"build_DEMO_Docs": "npm run build && npm run buildDOCS && node build-for-docs.js",
-		"start": "PORT=3002 node watch-public.js",
+		"start": "PORT=3002 node watch-public.mjs",
 		"build": "rm -rf dist/ && node build.js && tsc",
 		"buildDOCS": "./node_modules/.bin/typedoc --out docs/docs --excludeExternals -gitRevision main src",
 		"preversion": "npm run build",
@@ -27,7 +27,7 @@
 	"devDependencies": {
 		"@types/leaflet": "^1.9.3",
 		"changelogkeeper": "^1.2.0",
-		"esbuild": "^0.15.18",
+		"esbuild": "^0.17.18",
 		"esbuild-plugin-external-global": "^1.0.1",
 		"express": "^4.18.2",
 		"leaflet": "^1.9.3",

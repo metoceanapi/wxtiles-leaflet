@@ -7,8 +7,6 @@ const sharedConfig = {
 	loader: {
 		'.png': 'base64',
 		'.woff': 'base64',
-		'.fs': 'text',
-		'.vs': 'text',
 	},
 	plugins: [externalGlobalPlugin({ leaflet: 'window.L' })],
 	minify: true,
