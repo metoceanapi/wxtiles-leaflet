@@ -11,8 +11,8 @@ const sharedConfig = {
 		'.vs': 'text',
 	},
 	plugins: [externalGlobalPlugin({ leaflet: 'window.L' })],
-	target: 'es6',
 	minify: true,
+	// mangleProps: /.*/, // minify lib's names
 };
 
 // build for web
