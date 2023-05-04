@@ -335,7 +335,18 @@ export function cacheUriPromise<T>(fn: UriLoaderPromiseFunc<T>): UriLoaderPromis
  * */
 export async function loadImage(url: string, requestInit?: RequestInit): Promise<ImageBitmap> {
 	//// Method 0
-	return createImageBitmap(await (await fetch(url, requestInit)).blob());
+	const f = await fetch(url, requestInit);
+	const b = await f.blob(); // TODO: finish processing new instances
+	// if (!f.ok && b.type === 'text/plain') {
+	// 	const t = await b.text();
+	// 	if (t === 'Tile not found\n')
+	// 		throw {
+	// 			name: 'WxServer Error',
+	// 			message: t,
+	// 		};
+	// }
+
+	return await createImageBitmap(b, { premultiplyAlpha: 'none' });
 
 	// //// Method 000
 	// const img = new Image();
