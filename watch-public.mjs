@@ -28,13 +28,6 @@ console.log(`Dev is running at ${host}:${PORT}`);
 // https://esbuild.github.io/api/#serve-proxy
 http
 	.createServer((req, res) => {
-		// const options = {
-		// 	hostname: req.url.startsWith('/data') ? 'hihi2.metoceanapi.com' : host,
-		// 	port: req.url.startsWith('/data') ? undefined : port,
-		// 	path: req.url.startsWith('/data') ? 'https://hihi2.metoceanapi.com' + req.url : req.url,
-		// 	method: req.method,
-		// 	headers: req.headers,
-		// };
 		const options = {
 			hostname: host,
 			port: port,
@@ -65,3 +58,42 @@ http
 		req.pipe(proxyReq, { end: true });
 	})
 	.listen(PORT);
+
+/*
+// OLD CODE using express. Works with esbuild 0.15, but not with 0.17
+	esbuild
+	.build({
+		entryPoints: ['src_example/index.ts'],
+		bundle: true,
+		plugins: [],
+		loader: {
+			'.png': 'base64',
+			'.woff': 'base64',
+		},
+		target: 'es2020',
+		format: 'iife',
+		outfile: 'public/script/script.js',
+		sourcemap: true,
+		minify: false,
+		watch: {
+			onRebuild(error, result) {
+				if (error) {
+					console.error('watch build failed:', error);
+				} else {
+					console.log('rebuilded', new Date());
+				}
+			},
+		},
+	})
+	.then((result) => {
+		const app = express();
+		app.use(express.static('public'));
+
+		const url = `http://localhost:${PORT}`;
+		app.listen(PORT, () => {
+			console.log(`Dev is running at ${url}`);
+		});
+	})
+	.catch((e) => console.error(e.message));
+
+	*/

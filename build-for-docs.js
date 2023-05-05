@@ -1,5 +1,4 @@
 const esbuild = require('esbuild');
-const express = require('express');
 
 esbuild
 	.build({
