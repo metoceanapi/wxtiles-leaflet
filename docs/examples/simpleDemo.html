@@ -11,8 +11,8 @@
 		<script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" crossorigin=""></script>
 
 		<!-- WxTile lib goes here -->
-		<script src="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.1.1/dist/web/index.js"></script>
-		<link rel="stylesheet" href="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.1.1/dist/web/index.css" />
+		<script src="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.1.3/dist/web/index.js"></script>
+		<link rel="stylesheet" href="https://unpkg.com/@metoceanapi/wxtiles-leaflet@2.1.3/dist/web/index.css" />
 	</head>
 
 	<body style="margin: 0">
@@ -20,39 +20,50 @@
 
 		<script>
 			('use strict');
-			simpleDemo();
-			async function simpleDemo() {
+			start();
+			async function start() {
+				//// Leaflet initialization START
+				const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
+				// add navigation controls
+				L.control.zoom({ position: 'bottomright' }).addTo(map);
+				//// Leaflet initialization END
+
+				//// Helper
+				const addWxLayer = async (wxsource) => {
+					map.addLayer(wxsource);
+					await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+				};
+
+				const getCoords = (e) => e.latlng.wrap();
+				//// Helpers END
+
+				//// WXTILES START
+				// grab the WxTiles API
 				const { WxTilesLogging, WxAPI } = window.wxtilesleaflet;
 
-				const map = L.map('map', { center: [0, 0], zoom: 2, zoomControl: true });
+				WxTilesLogging(true); // log WxTiles info to console if needed
 
-				const dataServerURL = 'https://tilestest.metoceanapi.com/data/';
-				// const headers = new Headers();
-				// headers.append('x-api-key', '--proper-key-value--'); // If needed in the future
-				const requestInit = {
-					/* headers */
-				}; // add more options if needed such as headers, mode, credentials, etc
-
+				const dataServerURL = 'https://tiles.metoceanapi.com/data/';
 				// Get the API ready - should be ONE per application
-				WxTilesLogging(true); // If needed
-				const wxapi = new WxAPI({ dataServerURL, maskURL: 'auto', qtreeURL: 'auto', requestInit });
+				const wxapi = new WxAPI({ dataServerURL, maskURL: 'auto', qtreeURL: 'auto' });
 
+				// Define the dataset and variable
 				const datasetName = 'gfs.global';
-				const variable = 'air.temperature.at-2m'; // Scalar example
-				// const variable = 'wind.speed.eastward.at-10m'; // Vector example
+				// const variable = 'air.temperature.at-2m'; // Scalar example
+				const variable = 'wind.speed.eastward.at-10m'; // Vector example
 
 				// Create a dataset manager (may be used for many layers from this dataset)
 				const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 
 				// create a layer
-				const leafletOptions = { id: 'wxsource', opacity: 1, attribution: 'WxTiles' };
-				const wxsource = wxdatasetManager.createSourceLayer({ variable }, leafletOptions);
+				const layerFrameworkOptions = { id: 'wxsource', opacity: 1, attribution: 'WxTiles' };
+				const wxsource = wxdatasetManager.createSourceLayer({ variable }, layerFrameworkOptions);
 
 				// add the layer to the map
-				map.addLayer(wxsource);
+				await addWxLayer(wxsource);
 
-				// await for the first load
-				await new Promise((done) => wxsource.once('load', done)); // highly recommended to await for the first load
+				// extra magic
+				await wxsource.updateCurrentStyleObject({ streamLineColor: 'inverted' });
 			}
 		</script>
 	</body>

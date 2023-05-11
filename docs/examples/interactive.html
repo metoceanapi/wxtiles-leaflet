@@ -17,7 +17,6 @@
 
 	<body style="margin: 0">
 		<div id="map" style="height: 100vh; width: 100vw"></div>
-
 		<script>
 			('use strict');
 			start();
@@ -63,13 +62,22 @@
 				await addWxLayer(wxsource);
 
 				// extra magic
-				// update the style: mask sea
-				await wxsource.updateCurrentStyleObject({ mask: 'land' });
-				// start the blur animation
-				(async function step(n = 0) {
-					await wxsource.updateCurrentStyleObject({ isolineText: false, blurRadius: ~~(10 * Math.sin(n / 500) + 10) });
-					requestAnimationFrame(step);
-				})();
+				// on mouse movement, add a new color to the color map and re-render the layer
+				await wxsource.updateCurrentStyleObject({ levels: undefined, mask: 'land' }); // reset levels if existing in the style
+
+				const levels = wxsource.getCurrentStyleObjectCopy().levels || []; // get current/default/any levels
+				// generate a new color map from the existing levels
+				const colMap = levels.map((level) => [level, '#' + Math.random().toString(16).slice(2, 8) + 'ff']);
+				let busy = false;
+				map.on('mousemove', async (e) => {
+					if (!wxsource || busy) return;
+					busy = true;
+					const tileInfo = wxsource.getLayerInfoAtLatLon(getCoords(e), map);
+					if (tileInfo) {
+						await wxsource.updateCurrentStyleObject({ colorMap: [...colMap, [tileInfo.inStyleUnits[0], '#ff000000']] });
+					}
+					busy = false;
+				});
 			}
 		</script>
 	</body>

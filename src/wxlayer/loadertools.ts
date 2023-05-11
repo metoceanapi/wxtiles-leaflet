@@ -77,8 +77,8 @@ function interpolatorSquareDegree(a: number, b: number, c: number, d: number, dx
 	const l = interpolatorDegreeLinear(c, d, dxt); // lower line
 	// Encode Data back before returning
 	const ul = (interpolatorDegreeLinear(u, l, dyt) - dmin) / dmul;
-	if (ul < 1) return 1;
-	return ul; // ul0 is NaN, we don't need NaN here!
+	if (ul < 1) return 1; // As 0 is NaN, we don't need NaN here! so return 1 instead of NaN
+	return ul;
 }
 
 function interpolatorSquare(a: number, b: number, c: number, d: number, dxt: number, dyt: number, dmin: number, dmul: number): number {

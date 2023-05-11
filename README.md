@@ -20,43 +20,21 @@ Usage and API documentation is mainly equal for both frameworks.
 
 ## Examples
 
-### MapBox-gl-js
-
-```ts
-import 'mapbox-gl/dist/mapbox-gl.css';
-import mapboxgl from 'mapbox-gl';
-import { WxAPI } from '@metoceanapi/wxtiles-mbox';
-
-async func(){
-	// Get the API ready - should be ONE per application
-	// requestInit is used in every request to the server. Add your keys, credentials, mode, etc.
-	const wxapi = new WxAPI({ dataServerURL: 'https://tiles.metoceanapi.com/data/',
-		requestInit: { /* headers: new Headers([['x-api-key', 'key']]), */ } });
-
-	// Create a dataset manager (may be used for many variables-layers from this dataset)
-	const wxdatasetManager = await wxapi.createDatasetManager('gfs.global');
-
-	// Automatically gets a proper set of variable(s) from the dataset and composes northward or eastward components if needed
-	const variables = wxdatasetManager.checkCombineVariableIfVector('air.temperature.at-2m'); // 'wind.speed.eastward.at-10m' - Vector example
-
-	// create a Mapbox layer source
-	const mboxSourceOptions = { id: 'wxsource', attribution: 'WxTiles' };
-	const wxsource = new WxTileSource({ wxdatasetManager, variables }, mboxSourceOptions);
-
-	// add the layer to the map
-    const map = new mapboxgl.Map({ container: 'map', accessToken:'token', style: { version: 8, name: 'Empty', sources: {}, layers: [] } });
-    await map.once('load');
-	map.addSource(wxsource.id, wxsource);
-	map.addLayer({ id: 'wxlayer', type: 'raster', source: wxsource.id, paint: { 'raster-fade-duration': 0 /*NEDDED for animation*/ } });
-}()
-
-```
+[SimpleDemo](https://metoceanapi.github.io/wxtiles-leaflet/examples/simpleDemo.html).
+[Animated blur parameter](https://metoceanapi.github.io/wxtiles-leaflet/examples/seaMaskAndAnimatedBlur.html)
+[Mouse Interaction](https://metoceanapi.github.io/wxtiles-leaflet/examples/interactive.html)
 
 ### Leaflet
 
 ```ts
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import L from 'leaflet';start();
+
+/*
+start();
+
+/*
+
 import { WxAPI } from '@metoceanapi/wxtiles-leaflet';
 
 async func(){
