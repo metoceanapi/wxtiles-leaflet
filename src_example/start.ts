@@ -1,4 +1,4 @@
-import { WxTileSource, type WxVars, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions, WxGetColorStyles, WXLOG, WxColorStyleWeak } from '../src/index';
+import { WxTileSource, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions, WxGetColorStyles, WXLOG, WxColorStyleWeak } from '../src/index';
 import { WxLegendControl } from '../src/controls/WxLegendControl';
 import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
 import { WxInfoControl } from '../src/controls/WxInfoControl';
@@ -7,20 +7,22 @@ import { WxAPIControl } from '../src/controls/WxAPIControl';
 import { initFrameWork, addRaster, flyTo, setURL, addControl, removeLayer, addLayer, position } from './frwrkdeps';
 
 export const OPACITY = 0.8;
-// new EventSource('/esbuild').addEventListener('change', () => location.reload());
+
 // this is universal function for Leaflet and Mapbox.
 // Functions below are just framework specific wrappers for this universal function
 // start() is the fully interchangable function for Leaflet and Mapbox
 export async function start() {
 	const map = await initFrameWork();
-	addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
+	addRaster(map, 'baseS', 'baseL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 3);
+	// addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
 	// WxTilesLogging(console.trace);
 	// const dataServerURL = 'data/'; // different sources manged in 'start' script in package.json
-	const dataServerURL = 'https://tilestest.metoceanapi.com/data/';
+	// const dataServerURL = 'https://tilestest.metoceanapi.com/data/';
+	// const dataServerURL = 'http://localhost:9191/data/';
 	// const dataServerURL = 'https://68.171.214.87/data/'; // hihi1
 	// const dataServerURL = 'https://68.171.214.81/data/'; // hihi2
-	// const dataServerURL = 'https://tiles.metoceanapi.com/data/';
-	// const dataServerURL = 'http://tiles3.metoceanapi.com/';
+	// const dataServerURL = 'https://hihi2.metoceanapi.com/data/';
+	const dataServerURL = 'https://tilesdev.metoceanapi.com/data/';
 	const myHeaders = new Headers();
 	// myHeaders.append('x-api-key', 'SpV3J1RypVrv2qkcJE91gG');
 	const wxapi = new WxAPI({
@@ -31,17 +33,17 @@ export async function start() {
 		requestInit: { headers: myHeaders },
 	});
 
-	let datasetName = 'gfs.global'; /* 'mercator.global/';  */ /* 'ecwmf.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
+	// let datasetName = 'ecmwf.global'; /* 'mercator.global/';  */ /* 'gfs.global/'; */ /* 'obs-radar.rain.nzl.national/'; */
 	// let variable = 'cloud.cover';
-	let variable = 'air.temperature.at-2m';
+	// let variable = 'air.temperature.at-2m';
 	// let variable = 'wind.speed.eastward.at-10m';
 	// let variable = 'wave.direction.peak';
 
 	// let datasetName = 'ww3-ecmwf.global';
 	// let variable = 'wave.direction.mean';
 
-	// let datasetName = 'obs-radar.rain.nzl.national';
-	// let variable = 'reflectivity';
+	let datasetName = 'obs-radar.rain.nzl.national';
+	let variable = 'reflectivity';
 
 	// get datasetName from URL
 	const urlParams = window.location.toString().split('##')[1];
@@ -78,18 +80,16 @@ export async function start() {
 	const legendControl = new WxLegendControl();
 	addControl(map, legendControl, 'top-right');
 
-	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: '<a href="https://metoceanapi.github.io/wxtiles-leaflet/docs">WxTiles DOCS</a>' };
+	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: '<a href="https://metoceanapi.github.io/wxtiles-mbox/docs">WxTiles DOCS</a>' };
 	const apiControl = new WxAPIControl(wxapi, datasetName, variable);
 	addControl(map, apiControl, 'top-left');
-	apiControl.onchange = async (datasetName_, variable_, resetStyleAndFlyTo = true): Promise<void> => {
-		WXLOG('apiControl.onchange datasetName=', datasetName_, 'variable=', variable_);
+	apiControl.onchange = async (datasetName, variable, resetStyleAndFlyTo = true): Promise<void> => {
+		WXLOG('apiControl.onchange datasetName=', datasetName, 'variable=', variable);
 		// remove existing source and layer
 		removeLayer(map, frameworkOptions.id, wxsourceLayer);
 		//
 		resetStyleAndFlyTo && (sth.style = {}); // reset style if change dataset/variable
 		wxsourceLayer = undefined;
-		datasetName = datasetName_;
-		variable = variable_;
 		const wxdatasetManager = await wxapi.createDatasetManager(datasetName);
 		const boundaries = wxdatasetManager.getBoundaries();
 		if (boundaries && resetStyleAndFlyTo) {
@@ -97,13 +97,15 @@ export async function start() {
 			const zoom = Math.round(Math.log((360 * 360) / Math.max((east - west + 360) % 360, north - south) / 360) / Math.LN2); // from https://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds
 			flyTo(map, zoom, (east + west) / 2, (north + south) / 2, 0, 0);
 		}
-		const meta = wxdatasetManager.getVariableMeta(variable);
+		const meta = wxdatasetManager.getVariableCurrentMeta(variable);
 		if (meta?.units === 'RGB') {
-			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variable, wxdatasetManager.getTimes()[0]), wxdatasetManager.getMaxZoom());
-			timeControl.setTimes(wxdatasetManager.getTimes());
+			const times = wxdatasetManager.getAllTimes();
+			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variable, times[0]), wxdatasetManager.getMaxZoom());
+			timeControl.setTimes(times);
 			legendControl.clear();
 		} else {
 			wxsourceLayer = wxdatasetManager.createSourceLayer({ variable, time, wxstyle: sth.style }, frameworkOptions);
+			wxsourceLayer.setCoarseLevel(0);
 			await addLayer(map, 'wxtiles', wxsourceLayer);
 			// wxsource.startAnimation();
 			const styleCopy = wxsourceLayer.getCurrentStyleObjectCopy();
@@ -111,9 +113,10 @@ export async function start() {
 			styleCopy.levels = sth.style?.levels; // no need to show defaults it in the editor and URL
 			styleCopy.colors = sth.style?.colors; // no need to show defaults it in the editor and URL
 			await customStyleEditorControl.onchange?.(styleCopy, true);
+			timeControl.updateSource(wxsourceLayer);
 		}
-
-		timeControl.updateSource(wxsourceLayer);
+		// apiControl.datasets.value = datasetName;
+		// apiControl.variables.value = variable;
 	};
 
 	const timeControl = new WxTimeControl(50);

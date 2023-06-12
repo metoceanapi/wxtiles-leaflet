@@ -68,13 +68,13 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * @returns {WxTileInfo | undefined }
 	 * */
 	getLayerInfoAtLatLon(lnglat: WxLngLat, anymap: any): WxTileInfo | undefined {
-		WXLOG(`WxTileSource getLayerInfoAtLatLon (${this.layer.wxdatasetManager.datasetName})`, lnglat);
+		WXLOG(`WxTileSource getLayerInfoAtLatLon (${this._layer.wxdatasetManager.datasetName})`, lnglat);
 		if (!this._map) return;
 		const zoom = this._map.getZoom();
 		const mapPixCoord = this._map.project(lnglat, zoom); // map pixel coordinates
 		const tileCoord = mapPixCoord.divideBy(256).floor(); // tile's coordinates
 		const tilePixel = mapPixCoord.subtract(tileCoord.multiplyBy(256)).floor(); // tile pixel coordinates
-		return this.layer.getTileData({ x: tileCoord.x, y: tileCoord.y, z: zoom }, tilePixel);
+		return this._layer.getTileData({ x: tileCoord.x, y: tileCoord.y, z: zoom }, tilePixel);
 	}
 
 	/**
@@ -82,16 +82,16 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * Reloads the tiles that are currently visible on the map. Used for time/particles animation.
 	 **/
 	async _reloadVisible(requestInit?: WxRequestInit): Promise<void> {
-		WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName})`);
-		await this.layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with current/newly set time
+		WXLOG(`WxTileSource _reloadVisible (${this._layer.wxdatasetManager.datasetName})`);
+		await this._layer.reloadTiles(this.coveringTiles(), requestInit); // reload tiles with current/newly set time
 		if (requestInit?.signal?.aborted) {
-			WXLOG(`WxTileSource _reloadVisible (${this.layer.wxdatasetManager.datasetName}) aborted`);
+			WXLOG(`WxTileSource _reloadVisible (${this._layer.wxdatasetManager.datasetName}) aborted`);
 			return;
 		}
 
 		await Promise.allSettled(
 			this._ForEachWxTile(async (wxTile: WxTile): Promise<void> => {
-				wxTile.raster_data = await this.layer.loadTile(wxTile.coords); // fill raster_data from cache
+				wxTile.raster_data = await this._layer.loadTile(wxTile.coords); // fill raster_data from cache
 			}, '_reloadVisible')
 		);
 
@@ -104,7 +104,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * <MBOX API> get assigned by map.addSource *
 	 * */
 	coveringTiles(): XYZ[] {
-		WXLOG(`WxTileSource coveringTiles (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource coveringTiles (${this._layer.wxdatasetManager.datasetName})`);
 		const res: XYZ[] = [];
 		for (const _tile in this._tiles) {
 			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
@@ -120,16 +120,16 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 * 	<MBOX API> get assigned by map.addSource
 	 */
 	update() {
-		WXLOG(`WxTileSource update (${this.layer.wxdatasetManager.datasetName})`);
+		WXLOG(`WxTileSource update (${this._layer.wxdatasetManager.datasetName})`);
 		this._ForEachWxTile((wxtile: WxTile): void => {
 			// clear or draw the tile
-			wxtile.draw(wxtile.raster_data && this.layer.painter.getPaintedCanvas(wxtile.raster_data, this.animation, this.animationSeed));
+			wxtile.draw(wxtile.raster_data && this._layer.getPaintedCanvas(wxtile.raster_data, this._animation, this._animationSeed));
 		}, '_redrawTiles');
 	}
 
 	/** @ignore */
 	protected _ForEachWxTile<T>(func: (wxtile: WxTile) => T, name: string): T[] {
-		WXLOG(`WxTileSource _ForEachWxTile (${this.layer.wxdatasetManager.datasetName}) func=${name}`);
+		WXLOG(`WxTileSource _ForEachWxTile (${this._layer.wxdatasetManager.datasetName}) func=${name}`);
 		const res: T[] = [];
 		for (const _tile in this._tiles) {
 			const wxtile = (this._tiles[_tile].el as TileEl)?.wxtile;
@@ -149,10 +149,11 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	protected createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
 		const ctx = create2DContext(256, 256);
 		const tileEl = ctx.canvas as TileEl;
-		this.layer
+		this._layer
 			.loadTile(coords)
 			.then((tile) => {
 				tileEl.wxtile = new WxTile(coords, ctx, tile);
+				// done();
 			})
 			.catch(() => {
 				tileEl.wxtile = new WxTile(coords, ctx, null);
@@ -168,8 +169,8 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	 */
 	onRemove(map: L.Map): this {
 		super.onRemove(map);
-		WXLOG(`WxTileSource onRemove (${this.layer.wxdatasetManager.datasetName})`);
-		this.animation = false;
+		WXLOG(`WxTileSource onRemove (${this._layer.wxdatasetManager.datasetName})`);
+		this._animation = false;
 		return this;
 	} // onRemove
 } // WxTileSource

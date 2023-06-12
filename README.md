@@ -20,9 +20,9 @@ Usage and API documentation is mainly equal for both frameworks.
 
 ## Examples
 
-[SimpleDemo](https://metoceanapi.github.io/wxtiles-leaflet/examples/simpleDemo.html).
-[Animated blur parameter](https://metoceanapi.github.io/wxtiles-leaflet/examples/seaMaskAndAnimatedBlur.html)
-[Mouse Interaction](https://metoceanapi.github.io/wxtiles-leaflet/examples/interactive.html)
+1. [SimpleDemo](https://metoceanapi.github.io/wxtiles-mbox/examples/simpleDemo.html).
+2. [Animated blur parameter](https://metoceanapi.github.io/wxtiles-mbox/examples/seaMaskAndAnimatedBlur.html)
+3. [Mouse Interaction](https://metoceanapi.github.io/wxtiles-mbox/examples/interactive.html)
 
 ### Leaflet
 

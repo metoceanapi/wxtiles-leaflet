@@ -1,9 +1,10 @@
 import { type WxColorStyleWeak, WxGetColorStyles, type XYZ, type WxColorStyleStrict, WXLOG } from '../utils/wxtools';
-import type { WxRequestInit, WxDate, WxVars, WxLayerOptions, WxLngLat, WxTileInfo, TilesCache } from './wxlayer';
+import type { WxRequestInit, WxDate, WxLayerVarsNames, WxLngLat, WxTileInfo, TilesCache, WxLayerOptions } from './wxlayer';
 import { WxLayer } from './wxlayer';
-import type { WxDatasetMeta, WxVariableMeta } from '../wxAPI/wxAPI';
+import type { WxDatasetMeta, WxVariableMeta } from '../wxAPI/WxAPItypes';
 import { FrameworkParentClass, type FrameworkOptions } from '../wxsource/wxsourcetypes';
 import type { WxDataSetManager } from '../wxAPI/WxDataSetManager';
+import { WxTileSource } from '../wxsource/wxsource';
 
 /**
  * Mandatory Interface to be implemented by a {@link WxLayerBaseImplementation}
@@ -11,7 +12,7 @@ import type { WxDataSetManager } from '../wxAPI/WxDataSetManager';
 export interface WxLayerBaseAPI {
 	wxdatasetManager: WxDataSetManager;
 	getCurrentVariableMeta(): WxVariableMeta;
-	getVariables(): WxVars;
+	getVariablesNames(): WxLayerVarsNames;
 	clearCache(): void;
 	getCurrentStyleObjectCopy(): WxColorStyleStrict;
 	getTime(): string;
@@ -46,25 +47,25 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 * @ignore
 	 * if true, the source is animating
 	 * */
-	protected animation = false;
+	protected _animation = false;
 
 	/**
 	 * @ignore
 	 * a seed for the animation
 	 * */
-	protected animationSeed = 0;
+	protected _animationSeed = 0;
 
 	/**
 	 * @ignore
 	 * An instance of the layer
 	 * */
-	protected readonly layer: WxLayer;
+	protected readonly _layer: WxLayer;
 
 	/**
 	 * @ignore
 	 * used to avoid multiple animation requests
 	 * */
-	protected redrawRequested?: Promise<void>;
+	protected _redrawRequested?: Promise<void>;
 
 	/**
 	 * @internal
@@ -73,7 +74,7 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	constructor(wxLayerOptions: WxLayerOptions, frwOptions: FrameworkOptions) {
 		WXLOG(`WxLayerBaseImplementation.constructor (${frwOptions.id})`);
 		super(frwOptions);
-		this.layer = new WxLayer(wxLayerOptions);
+		this._layer = new WxLayer(wxLayerOptions);
 	} // constructor
 
 	/**
@@ -82,7 +83,7 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 * */
 	get wxdatasetManager(): WxDataSetManager {
 		WXLOG(`WxLayerBaseImplementation.wxdatasetManager (${this.id})`);
-		return this.layer.wxdatasetManager;
+		return this._layer.wxdatasetManager;
 	}
 
 	/**
@@ -91,11 +92,11 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	getCurrentVariableMeta(): WxVariableMeta {
 		WXLOG(`WxLayerBaseImplementation.getCurrentVariableMeta (${this.id})`);
-		return { ...this.layer.currentVariableMeta };
+		return { ...this._layer.currentVariableMeta };
 	}
 
 	getDatasetMeta(): WxDatasetMeta {
-		return this.layer.wxdatasetManager.getInstanceMeta(this.getTime());
+		return this._layer.wxdatasetManager.getInstanceMeta(this.getTime());
 	}
 
 	/**
@@ -105,16 +106,16 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	getMetadata(): WxVariableMeta {
 		WXLOG(`WxLayerBaseImplementation.getMetadata (${this.id})`);
-		return { ...this.layer.currentVariableMeta };
+		return { ...this._layer.currentVariableMeta };
 	}
 
 	/**
 	 * Get current variables (1 or 2) of the source/layer.
-	 * @returns {WxVars} variables of the source.
+	 * @returns {WxLayerVarsNames} variables of the source.
 	 */
-	getVariables(): WxVars {
+	getVariablesNames(): WxLayerVarsNames {
 		WXLOG(`WxLayerBaseImplementation.getVariables (${this.id})`);
-		return [...this.layer.variables];
+		return [...this._layer.variables];
 	}
 
 	/**
@@ -122,11 +123,11 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	clearCache(): void {
 		WXLOG(`WxLayerBaseImplementation.clearCache (${this.id})`);
-		this.layer.clearCache();
+		this._layer.clearCache();
 	}
 
 	getCache(): TilesCache {
-		return this.layer.tilesCache;
+		return this._layer.tilesCache;
 	}
 
 	/**
@@ -135,7 +136,7 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	getCurrentStyleObjectCopy(): WxColorStyleStrict {
 		WXLOG(`WxLayerBaseImplementation.getCurrentStyleObjectCopy (${this.id})`);
-		return this.layer.getCurrentStyleObjectCopy();
+		return this._layer.getCurrentStyleObjectCopy();
 	}
 
 	/**
@@ -144,12 +145,12 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	getTime(): string {
 		WXLOG(`WxLayerBaseImplementation.getTime (${this.id})`);
-		return this.layer.getTime();
+		return this._layer.getTime();
 	}
 
-	getTimes(): string[] {
+	getAllTimes(): string[] {
 		WXLOG(`WxLayerBaseImplementation.getTimes (${this.id})`);
-		return this.layer.wxdatasetManager.getTimes();
+		return this._layer.wxdatasetManager.getAllTimes();
 	}
 
 	/**
@@ -161,9 +162,9 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	async setTime(time?: WxDate, requestInit?: WxRequestInit): Promise<string> {
 		WXLOG(`WxLayerBaseImplementation.setTime (${this.id}) time=${time}`);
 		const oldtime = this.getTime();
-		this.layer.setURLsAndTime(time);
+		this._layer.setURLsAndTime(time);
 		await this._reloadVisible(requestInit);
-		if (requestInit?.signal?.aborted) this.layer.setURLsAndTime(oldtime); // restore old time and URLs
+		if (requestInit?.signal?.aborted) this._layer.setURLsAndTime(oldtime); // restore old time and URLs
 		return this.getTime();
 	}
 
@@ -175,33 +176,33 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	async preloadTime(time: WxDate, requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxLayerBaseImplementation.preloadTime (${this.id}) time=${time}`);
-		return this.layer.preloadTime(time, this.coveringTiles(), requestInit);
+		return this._layer.preloadTime(time, this.coveringTiles(), requestInit);
 	}
 
 	/**
 	 * Starts the particle animation for wind and currents if sutiable.
 	 */
 	startAnimation(): void {
-		if (this.animation) {
+		if (this._animation) {
 			WXLOG(`WxLayerBaseImplementation.startAnimation (${this.id}) already started`);
 			return;
 		}
 
-		if (this.layer.nonanimatable) {
+		if (this._layer.nonanimatable) {
 			WXLOG(`WxLayerBaseImplementation.startAnimation (${this.id}) nonanimatable`);
 			return;
 		}
 
 		WXLOG(`WxLayerBaseImplementation.startAnimation (${this.id})`);
-		this.animation = true;
+		this._animation = true;
 		const animationStep = async (seed: number) => {
 			WXLOG(`WxLayerBaseImplementation.startAnimation (${this.id}) animationStep`);
-			if (!this.animation || this.layer.nonanimatable) {
-				this.animation = false;
+			if (!this._animation || this._layer.nonanimatable) {
+				this._animation = false;
 				return;
 			}
 
-			this.animationSeed = seed;
+			this._animationSeed = seed;
 			await this._redrawTiles();
 			requestAnimationFrame(animationStep);
 		};
@@ -214,19 +215,19 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	async stopAnimation(): Promise<void> {
 		WXLOG(`WxLayerBaseImplementation.stopAnimation (${this.id})`);
-		this.animation = false;
+		this._animation = false;
 		return this._redrawTiles();
 	}
 
 	/** set coarse maximum zoom level to make tiles load faster during animation */
 	async setCoarseLevel(level: number = 2): Promise<void> {
-		this.layer.coarseLevel = Math.max(0, Math.min(level, this.wxdatasetManager.getMaxZoom()));
+		this._layer.coarseLevel = Math.max(0, Math.min(level, this.wxdatasetManager.getMaxZoom()));
 		// return this._reloadVisible(); // NOT needed? Hmmm... ибо used before loading new tile anyway
 	}
 
 	/** restores to the dataset's maximum zoom level */
 	async unsetCoarseLevel(): Promise<void> {
-		this.layer.coarseLevel = 0;
+		this._layer.coarseLevel = 0;
 		return this._reloadVisible();
 	}
 
@@ -250,26 +251,26 @@ export class WxLayerBaseImplementation extends FrameworkParentClass implements W
 	 */
 	async updateCurrentStyleObject(style?: WxColorStyleWeak, reload: boolean = true, requestInit?: WxRequestInit): Promise<void> {
 		WXLOG(`WxLayerBaseImplementation.updateCurrentStyleObject (${this.id}) style=${style} reload=${reload}`);
-		this.layer.updateCurrentStyleObject(style);
+		this._layer.updateCurrentStyleObject(style);
 		this.startAnimation();
 		if (reload) return this._reloadVisible(requestInit);
 	}
 
 	/** @ignore */
 	protected _redrawTiles(): Promise<void> {
-		if (this.redrawRequested) return this.redrawRequested;
-		this.redrawRequested = new Promise((resolve) => {
+		if (this._redrawRequested) return this._redrawRequested;
+		this._redrawRequested = new Promise((resolve) => {
 			requestAnimationFrame(() => {
 				WXLOG(`WxTileSource _redrawTiles (${this.id})`);
 
 				this.update();
 
 				resolve();
-				this.redrawRequested = undefined;
+				this._redrawRequested = undefined;
 			});
 		});
 
-		return this.redrawRequested;
+		return this._redrawRequested;
 	} // _redrawTiles
 
 	/**
