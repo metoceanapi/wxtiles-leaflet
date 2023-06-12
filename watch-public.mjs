@@ -36,16 +36,16 @@ http
 			headers: req.headers,
 		};
 
-		if (req.url.startsWith('/data/masks')) {
+		/*if (req.url.startsWith('/data/masks')) {
 			options.port = 9191; // all from local 'simple NGINX'
-		} else if (req.url.startsWith('/data')) {
+		} else */if (req.url.startsWith('/data')) {
 			// options.port = undefined;
 			// options.hostname = 'hihi2.metoceanapi.com';
 			// options.path = 'https://' + options.hostname + req.url;
 
-			// options.port = 9191; // local 'simple NGINX'
+			options.port = 9191; // local 'simple NGINX'
 
-			options.port = 5050; // wxtiles-http-server
+			// options.port = 5050; // wxtiles-http-server
 		}
 
 		// Forward each incoming request to esbuild

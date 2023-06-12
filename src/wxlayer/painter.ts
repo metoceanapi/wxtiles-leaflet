@@ -51,14 +51,14 @@ export class Painter {
 	 * @internal
 	 * {@link WxLayer} - parent layer
 	 * */
-	protected layer: WxLayer;
+	protected _layer: WxLayer;
 
 	/**
 	 * @internal
 	 * Do not use constructor directly
 	 * */
 	constructor(layer: WxLayer) {
-		this.layer = layer;
+		this._layer = layer;
 	}
 
 	/**
@@ -67,7 +67,7 @@ export class Painter {
 	 * @param {WxRasterData} data - data object for this tile
 	 * */
 	paint({ data, ctxFill, ctxText, ctxStreamLines }: WxRasterData): void {
-		const { layer } = this;
+		const { _layer: layer } = this;
 		const { units } = layer.currentVariableMeta;
 		const imageData = new ImageData(256, 256); //new ImageData(256, 256);
 		const imageBuffer = new Uint32Array(imageData.data.buffer); // a usefull representation of image's bytes (same memory)
@@ -100,7 +100,7 @@ export class Painter {
 	 * @param {number} seed - time seed
 	 * */
 	imprintVectorAnimationLinesStep({ data, ctxFill, ctxStreamLines }: WxRasterData, seed: number): void {
-		const { layer } = this;
+		const { _layer: layer } = this;
 		ctxStreamLines.clearRect(0, 0, 256, 256);
 		ctxStreamLines.drawImage(ctxFill.canvas, 0, 0);
 		if (data.slines.length === 0 || layer.style.streamLineStatic || layer.style.streamLineColor === 'none') return;
@@ -333,12 +333,12 @@ function _drawVectorAnimationLinesStep(wxdata: WxData, ctx: CanvasRenderingConte
 	for (let i = 0; i < slines.length; ++i) {
 		const sLine = slines[i];
 		const sSize = sLine.length - 1;
-		// pseed - is the most opaque piece // TODO:improve?
+		// pseed - is the most opaque piece
 		let pseed = (seed + (1 + sLine[0].x) * (1 + sLine[0].y)) % 30;
 		for (let k = 0; k < sSize; ++k) {
 			const p0 = sLine[k];
 			const p1 = sLine[k + 1];
-			let t = 1 - (pseed - k) / sSize; // TODO: improve?
+			let t = 1 - (pseed - k) / sSize;
 			if (t < 0 || t > 1) t = 0;
 			const col = (~~(t * 255)).toString(16).padStart(2, '0');
 			const w = 1 + ~~((1.2 - t) * 5);

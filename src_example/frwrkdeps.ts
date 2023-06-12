@@ -63,6 +63,6 @@ export async function addLayer(map: L.Map, idL: string, layer: L.Layer) {
 }
 
 export function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {
-	const layer = L.tileLayer(URL, { id: idS, maxNativeZoom: maxZoom, zIndex: idL === 'baseL' ? 100 : 0 });
+	const layer = L.tileLayer(URL, { id: idS, maxNativeZoom: maxZoom, zIndex: idL === 'baseL' ? 1 : 0 });
 	map.addLayer(layer);
 }
