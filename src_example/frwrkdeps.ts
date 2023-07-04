@@ -8,7 +8,10 @@ export function flyTo(map: L.Map, zoom: number, lng: number, lat: number, bearin
 export function setURL(map: L.Map, time: string, datasetName: string, variable: string, style: any) {
 	const base = WxGetColorStyles()['base'];
 	for (const i in style) style[i] === base[i] && delete style[i]; // remove default values
-
+	if (style.gl) {
+		for (const i in style.gl) style.gl[i] === base.gl?.[i] && delete style.gl[i]; // remove default values from gl
+		Object.keys(style.gl).length === 0 && delete style.gl; // remove gl if empty
+	}
 	const center = map.getCenter().wrap();
 	const href =
 		`##${datasetName}/${variable}/${time}/${map.getZoom().toFixed(2)}/${center.lng.toFixed(2)}/${center.lat.toFixed(2)}/0/0` +
@@ -62,7 +65,7 @@ export async function addLayer(map: L.Map, idL: string, layer: L.Layer) {
 	await new Promise((done) => layer.once('load', done)); // highly recommended to await for the first load
 }
 
-export function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number) {
+export function addRaster(map: L.Map, idS: string, idL: string, URL: string, maxZoom: number, bounds?: any) {
 	const layer = L.tileLayer(URL, { id: idS, maxNativeZoom: maxZoom, zIndex: idL === 'baseL' ? 1 : 0 });
 	map.addLayer(layer);
 }

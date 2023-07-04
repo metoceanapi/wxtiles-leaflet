@@ -91,6 +91,7 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 
 		await Promise.allSettled(
 			this._ForEachWxTile(async (wxTile: WxTile): Promise<void> => {
+				wxTile.raster_data = null; // clear raster_data before loading, to avoid rendering of old data in case of loading error/empty tile
 				wxTile.raster_data = await this._layer.loadTile(wxTile.coords); // fill raster_data from cache
 			}, '_reloadVisible')
 		);
@@ -149,14 +150,12 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 	protected createTile(coords: L.Coords, done: L.DoneCallback): HTMLElement {
 		const ctx = create2DContext(256, 256);
 		const tileEl = ctx.canvas as TileEl;
-		this._layer
-			.loadTile(coords)
-			.then((tile) => {
-				tileEl.wxtile = new WxTile(coords, ctx, tile);
-				// done();
+		this._loadTileHelper(coords)
+			.then((raster_data) => {
+				tileEl.wxtile = new WxTile(coords, ctx, raster_data);
 			})
 			.catch(() => {
-				tileEl.wxtile = new WxTile(coords, ctx, null);
+				tileEl.wxtile = new WxTile(coords, ctx, null); // we need to fill every tileEl with new WxTile, so it may be rerendered via time animation
 			})
 			.finally(done);
 
@@ -165,7 +164,9 @@ export class WxTileSource extends WxLayerBaseImplementation implements WxLayerAP
 
 	/**
 	 * @internal
-	 * @description Used by framework. Cleans up resources used by the source.
+	 * @description Called when the layer is removed from a map.
+	 * @param {L.Map} map - The map instance.
+	 * @returns {this} - The WxTileSource instance.
 	 */
 	onRemove(map: L.Map): this {
 		super.onRemove(map);

@@ -6,7 +6,7 @@ import { WxTimeControl } from '../src/controls/WxTimeControl ';
 import { WxAPIControl } from '../src/controls/WxAPIControl';
 import { initFrameWork, addRaster, flyTo, setURL, addControl, removeLayer, addLayer, position } from './frwrkdeps';
 
-export const OPACITY = 0.8;
+const OPACITY = 0.8;
 
 // this is universal function for Leaflet and Mapbox.
 // Functions below are just framework specific wrappers for this universal function
@@ -44,6 +44,9 @@ export async function start() {
 
 	let datasetName = 'obs-radar.rain.nzl.national';
 	let variable = 'reflectivity';
+
+	// let datasetName = 'him8_truecolor';
+	// let variable = 'h8_rgb';
 
 	// get datasetName from URL
 	const urlParams = window.location.toString().split('##')[1];
@@ -102,7 +105,16 @@ export async function start() {
 		const meta = wxdatasetManager.getVariableCurrentMeta(variable);
 		if (meta?.units === 'RGB') {
 			const times = wxdatasetManager.getAllTimes();
-			addRaster(map, frameworkOptions.id, 'wxtiles', wxdatasetManager.createURI(variable, times[0]), wxdatasetManager.getMaxZoom());
+
+			addRaster(
+				map,
+				frameworkOptions.id,
+				'wxtiles',
+				wxdatasetManager.createURI(variable, times[0]),
+				wxdatasetManager.getMaxZoom(),
+				wxdatasetManager.getBoundaries()?.boundariesnorm
+			);
+
 			timeControl.setTimes(times);
 			legendControl.clear();
 		} else {

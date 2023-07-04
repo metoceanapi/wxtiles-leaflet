@@ -16,7 +16,8 @@ export class FrameworkParentClass extends L.GridLayer {
 } // Leaflet
 
 /**
- * Framework's basic options to construct the layer.
+ * Framework dependent options for constructing a layer.
+ * Inherits from *L.GridLayerOptions*.
  * @example
  * ```ts
  * 	const leafletOptions: FrameworkOptions = { opacity: 1, attribution: 'WxTiles' };
