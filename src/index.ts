@@ -73,7 +73,7 @@ export {
 	type WxLayerVarsNames,
 	type WxLngLat,
 	type WxURIs,
-	TilesCache,
+	WxRasterDataCache as TilesCache,
 } from './wxlayer/wxlayer';
 
 export {
@@ -81,6 +81,8 @@ export {
 	WxLayerBaseImplementation,
 	type WxLayerAPI,
 	type WxLayerBaseAPI,
+	type ListenerMethod,
+	type WxEventType,
 } from './wxlayer/WxImplementation';
 
 export {
