@@ -83,7 +83,7 @@ export async function start() {
 	const legendControl = new WxLegendControl();
 	addControl(map, legendControl, 'top-right');
 
-	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: '<a href="https://metoceanapi.github.io/wxtiles-mbox/docs">WxTiles DOCS</a>' };
+	const frameworkOptions = { id: 'wxsource', opacity: OPACITY, attribution: '<a href="https://metoceanapi.github.io/wxtiles-leaflet/docs">WxTiles DOCS</a>' };
 	const apiControl = new WxAPIControl(wxapi, datasetName, variable);
 	addControl(map, apiControl, 'top-left');
 	apiControl.onchange = async (_datasetName, _variable, resetStyleAndFlyTo = true): Promise<void> => {
@@ -187,7 +187,7 @@ export async function start() {
 		await prom; // await always !! even if aborted
 		console.log('aborted');
 		await wxsource.setTime(5); // no abort
-		console.log('setTime(5) done'); 
+		console.log('setTime(5) done');
 	}//*/
 
 	/*/ DEMO: preload a timestep
