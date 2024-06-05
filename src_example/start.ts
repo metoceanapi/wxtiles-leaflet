@@ -14,7 +14,7 @@ const OPACITY = 0.8;
 export async function start() {
 	const map = await initFrameWork();
 	addRaster(map, 'baseS', 'baseL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 3);
-	// addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
+	addRaster(map, 'baseS', 'baseL', 'https://tiles.metoceanapi.com/base-lines/{z}/{x}/{y}', 5);
 	// WxTilesLogging(console.trace);
 	// const dataServerURL = 'data/'; // different sources manged in 'start' script in package.json
 	// const dataServerURL = 'https://tilestest.metoceanapi.com/data/';
@@ -187,7 +187,7 @@ export async function start() {
 		await prom; // await always !! even if aborted
 		console.log('aborted');
 		await wxsource.setTime(5); // no abort
-		console.log('setTime(5) done'); 
+		console.log('setTime(5) done');
 	}//*/
 
 	/*/ DEMO: preload a timestep
