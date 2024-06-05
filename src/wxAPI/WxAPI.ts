@@ -71,7 +71,7 @@ export class WxAPI {
 
 		// compose auto-URLs for qtree and mask
 		if (qtreeURL === 'auto') qtreeURL = dataServerURL + 'masks/11+1.seamask.qtree';
-		if (maskURL === 'auto') maskURL = dataServerURL + 'masks/{z}/{x}/{y}.png';
+		if (maskURL === 'auto') maskURL = dataServerURL + 'masks/{z}/{x}/{y}.webp';
 
 		this.dataServerURL = dataServerURL;
 		this.requestInit = requestInit;

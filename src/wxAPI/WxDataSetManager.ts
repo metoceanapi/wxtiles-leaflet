@@ -164,10 +164,10 @@ export class WxDataSetManager {
 	 * Createts dataset's current URI ready for fetching tiles.
 	 * @argument {string} variable - variable of the dataset
 	 * @argument {string} validTime - time step of the dataset
-	 * @argument {'png'} ext - must be PNG
+	 * @argument {'webp'} ext - must be WEBP
 	 * @returns {string} - dataset's current URI ready for fetching tiles
 	 * */
-	createURI(variable: string, validTime: string, ext: 'png' = 'png'): string {
+	createURI(variable: string, validTime: string, ext: 'webp' = 'webp'): string {
 		WXLOG(`WxDataSetManager.createURI: ${this.datasetName}, ${variable}, ${validTime}`);
 		if (!this.isVariableValid(variable)) throw new Error(`in dataset ${this.datasetName} variable ${variable} not found`);
 		const instance = this._instanced ? validTime : this._datasetCurrentInstance;
