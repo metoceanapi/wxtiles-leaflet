@@ -1,4 +1,4 @@
-import './wxtiles.css';
+import '../common/wxtiles.css';
 
 import { __colorSchemes_default_preset } from '../common/defaults/colorschemes';
 import { __colorStyles_default_preset } from '../common/defaults/styles';
