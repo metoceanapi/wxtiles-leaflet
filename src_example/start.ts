@@ -1,9 +1,9 @@
 import { WxTileSource, WxAPI, WxTilesLogging, type WxTileInfo, FrameworkOptions, WxGetColorStyles, WXLOG, WxColorStyleWeak } from '../src/index';
-import { WxLegendControl } from '../src/controls/WxLegendControl';
-import { WxStyleEditorControl } from '../src/controls/WxStyleEditorControl';
-import { WxInfoControl } from '../src/controls/WxInfoControl';
-import { WxTimeControl } from '../src/controls/WxTimeControl ';
-import { WxAPIControl } from '../src/controls/WxAPIControl';
+import { WxLegendControl } from '../src/common/controls/WxLegendControl';
+import { WxStyleEditorControl } from '../src/common/controls/WxStyleEditorControl';
+import { WxInfoControl } from '../src/common/controls/WxInfoControl';
+import { WxTimeControl } from '../src/common/controls/WxTimeControl';
+import { WxAPIControl } from '../src/common/controls/WxAPIControl';
 import { initFrameWork, addRaster, flyTo, setURL, addControl, removeLayer, addLayer, position } from './frwrkdeps';
 
 const OPACITY = 0.8;
