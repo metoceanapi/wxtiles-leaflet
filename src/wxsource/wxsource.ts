@@ -1,6 +1,6 @@
 import L from 'leaflet';
 
-import { type XYZ, WXLOG, create2DContext } from '../utils/wxtools';
+import { type XYZ, WXLOG, create2DContext } from '../common/utils/wxtools';
 import { type WxRequestInit, type WxTileInfo, type WxLngLat, WxLayerOptions } from '../wxlayer/wxlayer';
 import { type WxRasterData } from '../wxlayer/painter';
 import { WxLayerBaseImplementation, type WxLayerAPI } from '../wxlayer/WxImplementation';
